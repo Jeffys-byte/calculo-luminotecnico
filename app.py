@@ -90,6 +90,7 @@ def cadastrar_usuario(email, senha, nome):
         conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
         cursor = conn.cursor()
         is_adm = 1 if email.strip().lower() == EMAIL_DONO_MESTRE.lower() else 0
+        # Novos usuários criados ganham is_pro = 0 (precisam assinar/pagar para PRO, exceto o dono)
         is_pr = 1 if is_adm else 0
         
         cursor.execute("INSERT INTO usuarios (email, senha_hash, nome, is_pro, is_admin) VALUES (?, ?, ?, ?, ?)",
@@ -359,10 +360,12 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ["Largura", "L", f"{d['larg']:.2f}", "m"],
         ["Pé-Direito Total", "H", f"{d['pe_direito']:.2f}", "m"],
         ["Plano de Trabalho", "hp", f"{d['hp']:.2f}", "m"],
+        ["Descimento do Plano", "hp'", f"{d['hp_desc']:.2f}", "m"],
         ["Área Total", "A", f"{d['area']:.2f}", "m²"],
-        ["Altura Útil", "hu", f"{d['hu']:.2f}", "m"]
+        ["Altura Útil", "hu", f"{d['hu']:.2f}", "m"],
+        ["Índice do Local", "k", f"{d['k_indice']:.2f}", "—"]
     ])
-    adicionar_secao_tabela("2. Parâmetros Luminotécnicos", ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Norma"], [Inches(2.5), Inches(0.8), Inches(1.2), Inches(2.0)], [
+    adicionar_secao_tabela("2. Parâmetros Luminotécnicos", ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Norma / Descrição"], [Inches(2.5), Inches(0.8), Inches(1.2), Inches(2.0)], [
         ["Iluminância Requerida", "Ereq", f"{d['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"],
         ["Fluxo da Luminária", "Φlâmpada", f"{fluxo_fmt} lm", d.get('modelo_lum', 'Manual')],
         ["Potência Unitária", "Punit", f"{d['potencia']:.1f} W", "Consumo (W)"],
@@ -372,9 +375,15 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     adicionar_secao_tabela("3. Resultados do Dimensionamento", ["Item de Cálculo", "Valor Calculado", "Valor Adotado", "Unidade"], [Inches(3.0), Inches(1.2), Inches(1.3), Inches(1.0)], [
         ["Fluxo Requerido", f"{d['fluxo_req']:.2f}", "—", "lm"],
         ["Qtd. de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "un"],
+        ["Arranjo (Linhas x Colunas)", f"{d['linhas']} x {d['colunas']}", f"{d['linhas']} x {d['colunas']}", "arr."],
+        ["Distância entre Luminárias (C)", f"{d['dist_c']:.2f}", f"{d['dist_c']:.2f}", "m"],
+        ["Distância até Parede (C)", f"{d['dist_parede_c']:.2f}", f"{d['dist_parede_c']:.2f}", "m"],
+        ["Distância entre Luminárias (L)", f"{d['dist_l']:.2f}", f"{d['dist_l']:.2f}", "m"],
+        ["Distância até Parede (L)", f"{d['dist_parede_l']:.2f}", f"{d['dist_parede_l']:.2f}", "m"],
+        ["Fluxo Instalado", f"{fluxo_inst_fmt}", f"{fluxo_inst_fmt}", "lm"],
         ["Iluminância Real", "—", f"{d['lux_real']:.2f}", "lx"],
         ["Potência Total", "—", f"{d['pot_total']:.2f}", "W"],
-        ["DPI", "—", f"{d['dpi']:.2f}", "W/m²"]
+        ["Densidade de Potência (DPI)", "—", f"{d['dpi']:.2f}", "W/m²"]
     ])
     
     doc.add_heading("4. Parecer Técnico", level=2)
@@ -639,8 +648,23 @@ for idx, tab in enumerate(tabs):
             hp_desc = st.number_input("Descimento hp' (m)", value=0.0, key=f"hpd_{amb_atual['id']}")
         with col_b:
             iluminancia_req = st.number_input("Meta (lx)", value=TABELA_NORMA[tipo_atividade], key=f"lux_{amb_atual['id']}")
-            fator_u = st.selectbox("Fator de Utilização (u)", [0.65, 0.50, 0.35], index=1, key=f"ut_{amb_atual['id']}")
-            fator_d = st.selectbox("Fator de Depreciação (d)", [0.80, 0.75, 0.70], index=1, key=f"dep_{amb_atual['id']}")
+            
+            # Restaurando opções detalhadas de Fatores de Utilização e Depreciação
+            opcoes_u = {
+                "0.65 (Ambiente claro / Reflexão alta)": 0.65,
+                "0.50 (Ambiente médio / Padrão)": 0.50,
+                "0.35 (Ambiente escuro / Reflexão baixa)": 0.35
+            }
+            sel_u_desc = st.selectbox("Fator de Utilização (u)", list(opcoes_u.keys()), index=1, key=f"ut_{amb_atual['id']}")
+            fator_u = opcoes_u[sel_u_desc]
+
+            opcoes_d = {
+                "0.80 (Limpeza frequente / Ambiente limpo)": 0.80,
+                "0.75 (Limpeza periódica / Padrão)": 0.75,
+                "0.70 (Limpeza rara / Ambiente sujo/industrial)": 0.70
+            }
+            sel_d_desc = st.selectbox("Fator de Depreciação (d)", list(opcoes_d.keys()), index=1, key=f"dep_{amb_atual['id']}")
+            fator_d = opcoes_d[sel_d_desc]
 
         area = comprimento * largura
         hu = max(pe_direito - hp - hp_desc, 0.1)
@@ -648,23 +672,37 @@ for idx, tab in enumerate(tabs):
         fluxo_req_teorico = (iluminancia_req * area) / (fator_u * fator_d)
         qtd_teorica = fluxo_req_teorico / fluxo_lampada if fluxo_lampada > 0 else 0
         qtd_real = math.ceil(qtd_teorica)
-        fluxo_instalado = qtd_real * fluxo_lampada
+        
+        # Cálculo de arranjo e distanciamento das luminárias
+        if qtd_real > 0:
+            linhas = max(1, round(math.sqrt(qtd_real * (largura / comprimento))))
+            colunas = max(1, math.ceil(qtd_real / linhas))
+            qtd_real_ajustada = linhas * colunas
+        else:
+            linhas, colunas, qtd_real_ajustada = 1, 1, 0
+
+        dist_c = comprimento / linhas if linhas > 0 else comprimento
+        dist_parede_c = dist_c / 2.0
+        dist_l = largura / colunas if colunas > 0 else largura
+        dist_parede_l = dist_l / 2.0
+
+        fluxo_instalado = qtd_real_ajustada * fluxo_lampada
         lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
-        pot_total = qtd_real * potencia_lampada
+        pot_total = qtd_real_ajustada * potencia_lampada
         dpi = pot_total / area if area > 0 else 0
         conforme = lux_real >= iluminancia_req
 
-        st.markdown(f"**Resultado:** {qtd_real} luminárias | {lux_real:.2f} lx")
+        st.markdown(f"**Resultado:** {qtd_real_ajustada} luminárias ({linhas}L x {colunas}C) | {lux_real:.2f} lx")
 
         lista_calculos_ambientes.append({
             "nome": novo_nome, "comp": comprimento, "larg": largura, "pe_direito": pe_direito,
             "hp": hp, "hp_desc": hp_desc, "area": area, "hu": hu, "lux_req": iluminancia_req,
             "fluxo": fluxo_lampada, "potencia": potencia_lampada, "modelo_lum": modelo_desc_relatorio,
-            "k_indice": k_indice, "fator_u": fator_u, "desc_utilizacao": "Padrão", "fator_d": fator_d,
-            "desc_depreciacao": "Padrão", "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
-            "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado, "lux_real": lux_real,
-            "pot_total": pot_total, "dpi": dpi, "conforme": conforme, "linhas": 1, "colunas": 1,
-            "dist_c": 1, "dist_parede_c": 1, "dist_l": 1, "dist_parede_l": 1
+            "k_indice": k_indice, "fator_u": fator_u, "desc_utilizacao": sel_u_desc, "fator_d": fator_d,
+            "desc_depreciacao": sel_d_desc, "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
+            "qtd_real": qtd_real_ajustada, "fluxo_instalado": fluxo_instalado, "lux_real": lux_real,
+            "pot_total": pot_total, "dpi": dpi, "conforme": conforme, "linhas": linhas, "colunas": colunas,
+            "dist_c": dist_c, "dist_parede_c": dist_parede_c, "dist_l": dist_l, "dist_parede_l": dist_parede_l
         })
 
 st.markdown("---")
