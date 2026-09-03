@@ -78,8 +78,10 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n").bold = True
-    p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)").italic = True
+    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n")
+    p_info.runs[0].bold = True
+    run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)")
+    run_norma.italic = True
 
     def adicionar_secao_tabela(titulo, headers, col_widths, linhas):
         doc.add_heading(titulo, level=2)
@@ -101,6 +103,9 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         format_table_rows(tbl, col_widths)
         doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
+    fluxo_fmt = f"{int(d['fluxo']):,}".replace(",", ".")
+    fluxo_inst_fmt = f"{int(d['fluxo_instalado']):,}".replace(",", ".")
+
     # 1. Identificação
     adicionar_secao_tabela(
         "1. Identificação e Dados Geométricos do Ambiente",
@@ -112,7 +117,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
             ["Largura do Recinto", "L", f"{d['larg']:.2f}", "m"],
             ["Pé-Direito Total (Piso ao Teto)", "H", f"{d['pe_direito']:.2f}", "m"],
             ["Altura do Plano de Trabalho", "hp", f"{d['hp']:.2f}", "m"],
-            ["Pendotamento / Descimento da Luminária", "hp'", f"{d['hp_desc']:.2f}", "m"],
+            ["Pé-direito / Descimento da Luminária", "hp'", f"{d['hp_desc']:.2f}", "m"],
             ["Área Total Calculada", "A", f"{d['area']:.2f}", "m²"],
             ["Altura Útil de Iluminação", "hu", f"{d['hu']:.2f}", "m"]
         ]
@@ -124,9 +129,9 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Observações / Norma"],
         [Inches(2.5), Inches(0.8), Inches(1.2), Inches(2.0)],
         [
-            ["Iluminância Requerida (Meta)", "Ereq", f"{d['lux_req']} lx", "NBR ISO/CIE 8995-1"],
-            ["Fluxo Luminoso da Luminária/Cúpula", "Φlâmpada", f"{d['fluxo']:,} lm".replace(",", "."), "Dado do fabricante do LED/Luminária"],
-            ["Potência Unitária da Luminária", "Punit", f"{d['potencia']} W", "Consumo elétrico unitário (W)"],
+            ["Iluminância Requerida (Meta)", "Ereq", f"{d['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"],
+            ["Fluxo Luminoso da Luminária/Cúpula", "Φlâmpada", f"{fluxo_fmt} lm", "Dado do fabricante do LED/Luminária"],
+            ["Potência Unitária da Luminária", "Punit", f"{d['potencia']:.1f} W", "Consumo elétrico unitário (W)"],
             ["Índice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria do espaço: (C × L) / [hu × (C + L)]"],
             ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância padrão"],
             ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", "Manutenção para ambiente limpo"]
@@ -141,7 +146,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         [
             ["Fluxo Luminoso Requerido (Teórico)", f"{d['fluxo_req']:.2f}", "—", "lm"],
             ["Quantidade Mínima de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "unidades"],
-            ["Fluxo Luminoso Real Instalado", "—", f"{d['fluxo_instalado']:,}".replace(",", "."), "lm"],
+            ["Fluxo Luminoso Real Instalado", "—", f"{fluxo_inst_fmt}", "lm"],
             ["Iluminância Real Alcançada", "—", f"{d['lux_real']:.2f}", "lx"],
             ["Potência Total Instalada", "—", f"{d['pot_total']:.2f}", "W"],
             ["Densidade de Potência Iluminada (DPI)", "—", f"{d['dpi']:.2f}", "W/m²"]
@@ -166,9 +171,9 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p1.add_run("• Nível de Iluminância: ").bold = True
     p1.add_run(f"O valor projetado atinge {d['lux_real']:.2f} lx, ")
     if d['conforme']:
-        p1.add_run(f"atendendo com folga a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente.")
+        p1.add_run(f"atendendo com folga a meta de {d['lux_req']:.0f} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente.")
     else:
-        p1.add_run(f"abaixo da meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1. Recomenda-se ajustar o número ou potência das luminárias.")
+        p1.add_run(f"abaixo da meta de {d['lux_req']:.0f} lx exigida pela norma NBR ISO/CIE 8995-1. Recomenda-se ajustar o número ou potência das luminárias.")
 
     p2 = doc.add_paragraph()
     p2.add_run("• Eficiência Energética: ").bold = True
@@ -202,7 +207,6 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
         p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
         doc.add_paragraph()
 
-    # Itera sobre cada ambiente adicionando o relatório completo individual
     for idx, d in enumerate(lista_dados_ambientes):
         adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
         if idx < len(lista_dados_ambientes) - 1:
@@ -230,7 +234,6 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
         p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
         doc.add_paragraph()
 
-    # Cabeçalho Geral
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_titulo.paragraph_format.space_after = Pt(2)
@@ -250,8 +253,10 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(12)
-    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n").bold = True
-    p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)").italic = True
+    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n")
+    p_info.runs[0].bold = True
+    run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)")
+    run_norma.italic = True
 
     adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
 
@@ -266,7 +271,6 @@ st.set_page_config(page_title="Luminotécnica", layout="wide")
 st.title("⚡ Luminotécnica")
 st.write("Dimensionamento Profissional e Gerador de Relatórios de Cálculo Luminotécnico.")
 
-# Sidebar
 st.sidebar.header("🎨 Personalização da Marca")
 logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)", type=["png", "jpg", "jpeg"])
 
@@ -314,7 +318,6 @@ with tab1:
         fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01)
         fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05)
 
-    # --- CÁLCULOS TÉCNICOS ---
     area = comprimento * largura
     hu = pe_direito - hp - hp_desc
     hu = max(hu, 0.1)
@@ -383,10 +386,9 @@ with tab1:
         use_container_width=True
     )
 
-# --- ABA DE GERENCIAMENTO EM LOTE ---
 with tab2:
     st.subheader("📋 Planilha de Dimensionamento em Lote")
-    st.write("Adicione ou edite os ambientes na tabela abaixo. O relatório gerado conterá a estrutura completa detalhada (todas as tabelas e pareceres técnicos) para **cada um** dos ambientes cadastrados.")
+    st.write("Adicione ou edite os ambientes na tabela abaixo. O relatório gerado conterá a estrutura completa detalhada para **cada um** dos ambientes cadastrados.")
 
     data_inicial = pd.DataFrame([
         {"Ambiente": "Sala de Estar", "Comprimento (m)": 6.0, "Largura (m)": 4.0, "Pé-Direito (m)": 2.8, "Meta Lux": 150, "Fluxo Lâmpada (lm)": 1800, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
@@ -459,3 +461,4 @@ with tab2:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
+        
