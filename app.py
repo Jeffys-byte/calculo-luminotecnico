@@ -11,7 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SISTEMA DE AUTENTICAÇÃO E LICENCIAMENTO (R$ 14,90/MÊS) ---
+# --- BANCO DE DADOS LOCAL DE USUÁRIOS (MEMÓRIA DO APP) ---
+if "usuarios_cadastrados" not in st.session_state:
+    # Já deixamos o seu e-mail cadastrado com acesso vitalício/admin
+    st.session_state.usuarios_cadastrados = {
+        "jefkar27@gmail.com": {
+            "senha": "123", 
+            "criacao": datetime.datetime.now() - datetime.timedelta(days=30), # Conta antiga (ativa)
+            "tipo": "admin"
+        }
+    }
+
+# --- SISTEMA DE AUTENTICAÇÃO, CADASTRO E TESTE DE 24H ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
@@ -20,36 +31,75 @@ def verificar_autenticacao():
 
     if not st.session_state.autenticado:
         st.markdown("## 🔐 Área Restrita - Luminotécnica Profissional")
-        st.markdown("Faça login com sua conta ou assine o plano profissional por R$ 14,90/mês.")
+        st.markdown("Crie sua conta e ganhe **24 horas de teste gratuito**, ou faça login se já tiver cadastro.")
         
-        tab_login, tab_planos = st.tabs(["🔑 Fazer Login", "💳 Assinar (R$ 14,90/mês)"])
+        tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 14,90/mês)"])
         
+        # --- ABA 1: LOGIN ---
         with tab_login:
             with st.form("form_login"):
-                email_input = st.text_input("E-mail cadastrado", value="jefkar27@gmail.com").strip().lower()
-                senha_input = st.text_input("Senha", type="password", value="123456").strip()
+                email_input = st.text_input("E-mail cadastrado", value="").strip().lower()
+                senha_input = st.text_input("Senha", type="password", value="").strip()
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    if email_input != "" and senha_input != "":
-                        st.session_state.autenticado = True
-                        st.session_state.usuario_email = email_input
-                        st.session_state.plano_ativo = "Plano Profissional (R$ 14,90/mês)"
-                        st.success("Login realizado com sucesso!")
-                        st.rerun()
-                    else:
-                        st.error("Preencha o e-mail e a senha.")
+                    if email_input in st.session_state.usuarios_cadastrados:
+                        user_data = st.session_state.usuarios_cadastrados[email_input]
                         
+                        # Verifica se é admin ou se está dentro das 24h de teste, ou se assinou
+                        agora = datetime.datetime.now()
+                        tempo_criacao = user_data["criacao"]
+                        horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
+                        
+                        if user_data["tipo"] == "admin" or horas_decorridas <= 24 or user_data.get("assinante", False):
+                            st.session_state.autenticado = True
+                            st.session_state.usuario_email = email_input
+                            st.success("Login realizado com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 14,90/mês.")
+                    else:
+                        st.error("E-mail não encontrado. Crie sua conta na aba ao lado!")
+
+        # --- ABA 2: CRIAR CONTA (TESTE 24H) ---
+        with tab_cadastro:
+            st.markdown("### ⚡ Comece a usar agora mesmo")
+            st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos na obra.")
+            
+            with st.form("form_cadastro"):
+                novo_email = st.text_input("Seu E-mail principal", value="").strip().lower()
+                nova_senha = st.text_input("Crie uma Senha", type="password", value="").strip()
+                btn_cadastrar = st.form_submit_button("Criar Conta e Iniciar Teste Grátis")
+                
+                if btn_cadastrar:
+                    if novo_email and nova_senha:
+                        if novo_email in st.session_state.usuarios_cadastrados:
+                            st.warning("Este e-mail já está cadastrado. Faça login na primeira aba.")
+                        else:
+                            st.session_state.usuarios_cadastrados[novo_email] = {
+                                "senha": nova_senha,
+                                "criacao": datetime.datetime.now(),
+                                "tipo": "cliente",
+                                "assinante": False
+                            }
+                            st.session_state.autenticado = True
+                            st.session_state.usuario_email = novo_email
+                            st.success("Conta criada com sucesso! Seus teste de 24 horas começou.")
+                            st.rerun()
+                    else:
+                        st.error("Preencha todos os campos para criar a conta.")
+
+        # --- ABA 3: PLANOS E PAGAMENTO ---
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
-            st.markdown("Tenha acesso completo a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios ilimitados em Word.")
+            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios em Word.")
             st.info("💡 **Apenas R$ 14,90 / mês** — Cancele quando quiser.")
             
-            # Cole o seu link de pagamento/assinatura do Mercado Pago abaixo:
-            link_mercado_pago = "https://www.mercadopago.com.br/seu-link-de-assinatura"
+            # Substitua pelo link correto do Mercado Pago quando criar o seu botão de assinatura
+            link_mercado_pago = "https://www.mercadopago.com.br"
             
             st.link_button("💳 Assinar Agora por R$ 14,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
-            st.markdown("*(Após a confirmação do pagamento, seu acesso é liberado para o e-mail da compra).*")
+            st.markdown("*(Assim que assinar, seu acesso é liberado permanentemente).*")
                     
         return False
 
@@ -324,7 +374,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
 # --- INTERFACE PRINCIPAL ---
 st.title("💡 Luminotécnica Profissional")
-st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')} ({st.session_state.get('plano_ativo', 'Plano Ativo')})")
+st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')}")
 
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
