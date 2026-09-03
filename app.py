@@ -79,13 +79,13 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- BANCO COMPLETO RESTAURADO (LUMINÁRIAS E PAINÉIS) ---
+# --- BANCO COMPLETO DE LUMINÁRIAS E PAINÉIS ---
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
+        {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado Embutir", "Lumens": 1440, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Painel LED 24W Redondo Embutir", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Luminária de Embutir 2x16W Tubular", "Lumens": 3200, "Potencia": 32.0, "Tipo": "Painel/Luminária"},
-        {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Osram", "Modelo": "Luminária LED Estanque 36W", "Lumens": 3600, "Potencia": 36.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Taschibra", "Modelo": "Painel LED Slim 12W Quadrado", "Lumens": 960, "Potencia": 12.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Gaya", "Modelo": "Luminária Plafon LED 25W", "Lumens": 2000, "Potencia": 25.0, "Tipo": "Painel/Luminária"},
@@ -93,7 +93,7 @@ if "banco_luminarias" not in st.session_state:
         {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0, "Tipo": "Industrial"},
     ]
 
-# Banco específico para Fitas LED isolado na página dedicada
+# Banco específico para Fitas LED (Protegido para Usuários PRO)
 if "banco_fitas" not in st.session_state:
     st.session_state.banco_fitas = [
         {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20", "Lumens": 900, "Potencia": 10.0},
@@ -225,7 +225,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
         r_h2.font.size = Pt(10.5)
         r_h2.font.color.rgb = COR_TEXTO_TITULO
 
-        t2 = doc.add_table(rows=7, cols=4)
+        t2 = doc.add_table(rows=6, cols=4)
         t2.alignment = WD_TABLE_ALIGNMENT.CENTER
         t2.autofit = False
         w2 = [Inches(2.3), Inches(0.9), Inches(1.8), Inches(1.5)]
@@ -243,7 +243,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
             run.font.size = Pt(8.5)
 
         dados_bloco2 = [
-            ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.0f} lx", "Manual / NBR ISO/CIE 8995-1"),
+            ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.2f} lx", "Manual / NBR ISO/CIE 8995-1"),
             ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
             ("Potência Unitária", "Punit", f"{amb['pot_unidade_rel']:.2f}", amb['unidade_pot_desc']),
             ("Fator de Utilização", "u", f"{amb['fator_u']:.2f}", f"{amb['fator_u']:.2f} ({amb['desc_utilizacao']})"),
@@ -333,7 +333,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- INTERFACE PRINCIPAL DO APLICATIVO (ABAS / PÁGINAS SEPARADAS) ---
+# --- INTERFACE PRINCIPAL DO APLICATIVO ---
 st.title("💡 Luminotécnica Profissional")
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')} ({st.session_state.get('plano_ativo', 'Plano Ativo')})")
 
@@ -363,8 +363,8 @@ with col_cli2:
 
 st.markdown("---")
 
-# --- NAVEGAÇÃO POR ABAS / PÁGINAS PRINCIPAIS ---
-aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (Metro Linear)"])
+# --- NAVEGAÇÃO POR ABAS (ÁREA DE FITAS LED RESTRITA PARA USUÁRIOS LOGADOS/PRO) ---
+aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (Acesso Exclusivo PRO)"])
 
 with aba_principal:
     st.markdown("### 🛋️ Gerenciamento de Ambientes e Seleção de Luminárias")
@@ -395,7 +395,7 @@ with aba_principal:
                 st.success("Luminária cadastrada com sucesso!")
 
     if "ambientes" not in st.session_state:
-        st.session_state.ambientes = [{"id": 1, "nome": "Dormitório Principal"}]
+        st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
 
     col_add, col_rem = st.columns([1, 1])
     with col_add:
@@ -429,7 +429,7 @@ with aba_principal:
                 if usar_lux_manual:
                     lux_req = st.number_input("Iluminância Desejada (lx)", value=float(lux_padrao_norma), step=10.0, key=f"lux_man_{amb_atual['id']}")
                 else:
-                    lux_req = lux_padrao_norma
+                    lux_req = float(lux_padrao_norma)
                     st.markdown(f"**Iluminância Normativa:** {lux_req} lx")
 
             st.markdown("##### 💡 Seleção de Luminária / Painel")
@@ -447,49 +447,57 @@ with aba_principal:
             else:
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
-                    fluxo_base = st.number_input("Fluxo Luminoso da Unidade (lm)", value=1440.0, step=50.0, key=f"fluxo_man_lum_{amb_atual['id']}")
+                    fluxo_base = st.number_input("Fluxo Luminoso da Unidade (lm)", value=1920.0, step=50.0, key=f"fluxo_man_lum_{amb_atual['id']}")
                 with col_m2:
-                    potencia_base = st.number_input("Potência Unitária (W)", value=18.0, step=1.0, key=f"pot_man_lum_{amb_atual['id']}")
+                    potencia_base = st.number_input("Potência Unitária (W)", value=24.0, step=1.0, key=f"pot_man_lum_{amb_atual['id']}")
                 modelo_desc_relatorio = "[Painel/Luminária] Personalizado"
 
             st.markdown("##### Geometria e Fatores")
             col_g1, col_g2, col_g3 = st.columns(3)
             with col_g1:
-                comp = st.number_input("Comprimento (m)", value=6.0, step=0.1, key=f"comp_{amb_atual['id']}")
+                comp = st.number_input("Comprimento (m)", value=3.0, step=0.1, key=f"comp_{amb_atual['id']}")
                 pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}")
             with col_g2:
-                larg = st.number_input("Largura (m)", value=4.5, step=0.1, key=f"larg_{amb_atual['id']}")
+                larg = st.number_input("Largura (m)", value=2.0, step=0.1, key=f"larg_{amb_atual['id']}")
                 hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
             with col_g3:
                 hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.50, 0.05, key=f"fu_{amb_atual['id']}")
+                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, key=f"fu_{amb_atual['id']}")
             with col_f2:
-                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.75, 0.05, key=f"fd_{amb_atual['id']}")
+                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}")
 
-            # --- MEMÓRIA DE CÁLCULO ---
+            # --- CÁLCULO TEÓRICO BASE ---
             area = comp * larg
             hu = pe_direito - hp - hp_desc
             k_indice = (comp * larg) / (hu * (comp + larg)) if hu > 0 else 1.0
-
             fluxo_req = (lux_req * area) / (fator_u * fator_d) if (fator_u * fator_d) > 0 else 0
 
             fluxo_lampada = fluxo_base
             potencia_lampada = potencia_base
             qtd_teorica = fluxo_req / fluxo_lampada if fluxo_lampada > 0 else 0
-            qtd_real = math.ceil(qtd_teorica)
-            if qtd_real < 1:
-                qtd_real = 1
+            qtd_min_sugerida = math.ceil(qtd_teorica)
+            if qtd_min_sugerida < 1:
+                qtd_min_sugerida = 1
 
-            proporcao = comp / larg if larg > 0 else 1.0
-            colunas = math.ceil(math.sqrt(qtd_real * proporcao))
-            linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
+            # --- OPÇÃO DE DIVIDIR AS LUMINÁRIAS EM COLUNAS E LINHAS MANUALMENTE ---
+            st.markdown("##### 🎛️ Configuração do Arranjo (Linhas e Colunas)")
+            col_arr1, col_arr2 = st.columns(2)
+            with col_arr1:
+                linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
+            with col_arr2:
+                colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
 
-            dist_c_entre = comp / colunas if colunas > 0 else comp
+            qtd_real = linhas_man * colunas_man
+
+            if qtd_real < qtd_min_sugerida:
+                st.warning(f"⚠️ O arranjo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un). O ambiente pode ficar abaixo da norma.")
+
+            dist_c_entre = comp / colunas_man if colunas_man > 0 else comp
             dist_c_parede = dist_c_entre / 2.0  # Afastamento até a parede
-            dist_l_entre = larg / linhas if linhas > 0 else larg
+            dist_l_entre = larg / linhas_man if linhas_man > 0 else larg
             dist_l_parede = dist_l_entre / 2.0  # Afastamento até a parede
 
             fluxo_instalado = qtd_real * fluxo_lampada
@@ -497,7 +505,7 @@ with aba_principal:
             
             qtd_real_str = str(int(qtd_real))
             unidade_medida_qtd = "un"
-            arranjo_str = f"{linhas} Linhas x {colunas} Colunas"
+            arranjo_str = f"{linhas_man} Linhas x {colunas_man} Colunas"
             fluxo_unidade_rel = fluxo_lampada
             pot_unidade_rel = potencia_lampada
             unidade_pot_desc = "Consumo Unitário (W)"
@@ -508,8 +516,8 @@ with aba_principal:
             conforme = lux_real >= lux_req
 
             # --- RESULTADO E CONFERÊNCIA DE QUANTIDADE NA TELA ---
-            st.success(f"✨ **Conferência de Quantidade:** **{int(qtd_real)} unidades** calculadas para o ambiente ({area:.1f} m²).")
-            st.info(f"📏 **Espaçamentos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede (Metade):** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m | **Lux Real Alcançado:** {lux_real:.1f} lx")
+            st.success(f"✨ **Conferência de Quantidade:** **{int(qtd_real)} unidades** adotadas no arranjo ({area:.1f} m²).")
+            st.info(f"📏 **Espaçamentos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede (Metade):** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m | **Lux Real Alcançado:** {lux_real:.2f} lx")
 
             lista_calculos_ambientes.append({
                 "id": amb_atual["id"],
@@ -550,8 +558,8 @@ with aba_principal:
             st.markdown("---")
 
 with aba_fitas:
-    st.markdown("### ✨ Projeto Dedicado a Fitas LED Lineares (Metragem por Metro)")
-    st.markdown("Aqui você calcula de forma isolada a quantidade de metros lineares de fita LED necessária para sancas, rasgos de gesso ou iluminação linear.")
+    st.markdown("### ✨ Projeto de Fitas LED Lineares (Acesso Restrito / PRO)")
+    st.markdown("Esta seção é exclusiva para usuários autenticados calcularem a metragem linear de fitas LED por metro.")
     
     col_fita_1, col_fita_2 = st.columns(2)
     with col_fita_1:
@@ -599,4 +607,3 @@ if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_con
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
-    
