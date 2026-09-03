@@ -97,14 +97,24 @@ def verificar_autenticacao():
 
         with tab_planos:
             st.markdown("### Escolha o seu plano de acesso profissional:")
-            col_p1, col_p2 = st.columns(2)
+            col_p1, col_p2, col_p3 = st.columns(3)
+            
             with col_p1:
+                st.markdown("#### ⚡ Plano Mensal (R$ 39,90)")
+                st.markdown("- Todos os cálculos\n- Relatórios em Word\n- Cadastro de Clientes")
+                st.link_button("💳 Assinar Mensal", "https://www.mercadopago.com.br/seu-link-mensal", use_container_width=True)
+                
+            with col_p2:
                 st.markdown("#### 🌟 Plano Semestral (R$ 69,00)")
                 st.markdown("- Todos os cálculos\n- Relatórios em Word\n- Cadastro de Clientes")
-            with col_p2:
+                st.link_button("💳 Assinar Semestral", "https://www.mercadopago.com.br/seu-link-semestral", use_container_width=True)
+                
+            with col_p3:
                 st.markdown("#### 🚀 Plano Anual (R$ 99,00)")
                 st.markdown("- Todos os recursos liberados\n- Suporte prioritário")
-            st.info("Para assinar, entre em contato com o suporte para liberação imediata do seu e-mail no sistema.")
+                st.link_button("💳 Assinar Anual", "https://www.mercadopago.com.br/seu-link-anual", use_container_width=True)
+                
+            st.info("💡 Após a confirmação do pagamento, seu acesso será liberado no e-mail utilizado na compra.")
                     
         return False
         
@@ -115,7 +125,7 @@ def verificar_autenticacao():
             data_cad = datetime.datetime.strptime(data_cad_str, "%Y-%m-%d").date()
             dias_decorridos = (datetime.date.today() - data_cad).days
             if dias_decorridos > 5:
-                st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Entre em contato para assinar um plano.")
+                st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Escolha um plano para continuar.")
                 st.session_state.autenticado = False
                 st.rerun()
         except Exception:
@@ -552,15 +562,15 @@ with aba_principal:
                 pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, help="Altura total do piso acabado até o teto em metros.", key=f"pd_{amb_atual['id']}")
             with col_g2:
                 larg = st.number_input("Largura (m)", value=2.0, step=0.1, help="Largura total do cômodo em metros.", key=f"larg_{amb_atual['id']}")
-                hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, help="Altura do plano de referência onde ocorre a atividade (ex: 0,75m para mesas de escritório ou 0,00m para o chão).", key=f"hp_{amb_atual['id']}")
+                hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, help="Altura do plano de referência onde ocorre a atividade.", key=f"hp_{amb_atual['id']}")
             with col_g3:
-                hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, help="Altura de rebaixamento de teto (forro de gesso) ou distância de suspensão da luminária em relação ao teto estrutural.", key=f"hdesc_{amb_atual['id']}")
+                hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, help="Altura de rebaixamento de teto.", key=f"hdesc_{amb_atual['id']}")
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, help="Fator que indica a eficiência da luz refletida pelas paredes, teto e piso até o plano de trabalho.", key=f"fu_{amb_atual['id']}")
+                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, help="Fator que indica a eficiência da luz refletida.", key=f"fu_{amb_atual['id']}")
             with col_f2:
-                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, help="Fator de perda de fluxo luminoso ao longo do tempo devido ao acúmulo de poeira e envelhecimento das lâmpadas.", key=f"fd_{amb_atual['id']}")
+                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, help="Fator de perda de fluxo luminoso ao longo do tempo.", key=f"fd_{amb_atual['id']}")
 
             area = comp * larg
             hu = pe_direito - hp - hp_desc
@@ -577,9 +587,9 @@ with aba_principal:
             st.markdown("##### 🎛️ Configuração do Arranjo (Linhas e Colunas)")
             col_arr1, col_arr2 = st.columns(2)
             with col_arr1:
-                linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, help="Número de fileiras de luminárias distribuídas no comprimento/largura.", key=f"linhas_man_{amb_atual['id']}")
+                linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
             with col_arr2:
-                colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, help="Número de colunas de luminárias distribuídas no ambiente.", key=f"colunas_man_{amb_atual['id']}")
+                colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
 
             qtd_real = linhas_man * colunas_man
 
@@ -644,8 +654,8 @@ with aba_fitas:
     st.markdown("### ✨ Projeto de Fitas LED Lineares (Acesso Restrito / PRO)")
     col_fita_1, col_fita_2 = st.columns(2)
     with col_fita_1:
-        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, help="Comprimento linear total onde a fita LED será instalada.", key="fita_comp_m")
-        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, help="Nível de iluminância desejado para o projeto linear.", key="fita_lux_alvo")
+        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, key="fita_comp_m")
+        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, key="fita_lux_alvo")
     with col_fita_2:
         banco_fita_opcoes = [f"{f['Fabricante']} - {f['Modelo']} ({f['Lumens']} lm/m)" for f in st.session_state.banco_fitas]
         banco_fita_opcoes.append("⚙️ Personalizada")
@@ -655,7 +665,7 @@ with aba_fitas:
             idx_f = banco_fita_opcoes.index(sel_fita_aba)
             lm_metro = st.session_state.banco_fitas[idx_f]["Lumens"]
         else:
-            lm_metro = st.number_input("Fluxo por Metro (lm/m)", value=900.0, step=50.0, help="Fluxo luminoso emitido por metro linear da fita LED.", key="fita_lm_man")
+            lm_metro = st.number_input("Fluxo por Metro (lm/m)", value=900.0, step=50.0, key="fita_lm_man")
 
     metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
     st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
