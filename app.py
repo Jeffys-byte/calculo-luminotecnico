@@ -129,7 +129,6 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         if idx > 0:
             doc.add_page_break()
 
-        # Título principal do ambiente
         p_t = doc.add_paragraph()
         r_t = p_t.add_run(f"RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO\nAMBIENTE: {amb['nome'].upper()}")
         r_t.bold = True
@@ -220,7 +219,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
         dados_bloco2 = [
             ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"),
-            ("Fluxo da Luminária", "Φlâmpada", f"{amb['fluxo']:,.0f} lm".replace(",", "."), amb['modelo_lum']),
+            ("Fonte Luminosa / Equipamento", "Φlâmpada", f"{amb['fluxo']:,.0f} lm".replace(",", "."), amb['modelo_lum']),
             ("Potência Unitária", "Punit", f"{amb['potencia']:.1f} W", "Consumo (W)"),
             ("Fator de Utilização", "u", f"{amb['fator_u']:.2f}", f"{amb['fator_u']:.2f} ({amb['desc_utilizacao']})"),
             ("Fator de Depreciação", "d", f"{amb['fator_d']:.2f}", f"{amb['fator_d']:.2f} ({amb['desc_depreciacao']})")
@@ -246,7 +245,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         r_h3.font.size = Pt(11)
         r_h3.font.color.rgb = COR_TEXTO_TITULO
 
-        t3 = doc.add_table(rows=15, cols=4)
+        t3 = doc.add_table(rows=13, cols=4)
         t3.alignment = WD_TABLE_ALIGNMENT.CENTER
         t3.autofit = False
         w3 = [Inches(2.8), Inches(1.3), Inches(1.4), Inches(1.0)]
@@ -267,11 +266,11 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
             ("Fluxo Luminoso Necessário", f"{amb['fluxo_req']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "—", "lm"),
             ("Fluxo Luminoso Instalado (Real)", f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "lm"),
             ("Diferencial de Fluxo (Variância)", f"{amb['variacao_fluxo_pct']:+.1f}%", f"{amb['variacao_fluxo_pct']:+.1f}%", "%"),
-            ("Qtd. de Luminárias", f"{amb['qtd_teorica']:.2f}", f"{amb['qtd_real']}", "un"),
+            ("Qtd. de Equipamentos / Pontos", f"{amb['qtd_teorica']:.2f}", f"{amb['qtd_real']}", "un"),
             ("Arranjo (Linhas x Colunas)", f"{amb['linhas']} x {amb['colunas']}", f"{amb['linhas']} x {amb['colunas']}", "arr."),
-            ("Distância entre Luminárias (C)", f"{amb['dist_c_entre']:.2f}", f"{amb['dist_c_entre']:.2f}", "m"),
+            ("Distância entre Pontos (C)", f"{amb['dist_c_entre']:.2f}", f"{amb['dist_c_entre']:.2f}", "m"),
             ("Distância até Parede (C)", f"{amb['dist_c_parede']:.2f}", f"{amb['dist_c_parede']:.2f}", "m"),
-            ("Distância entre Luminárias (L)", f"{amb['dist_l_entre']:.2f}", f"{amb['dist_l_entre']:.2f}", "m"),
+            ("Distância entre Pontos (L)", f"{amb['dist_l_entre']:.2f}", f"{amb['dist_l_entre']:.2f}", "m"),
             ("Distância até Parede (L)", f"{amb['dist_l_parede']:.2f}", f"{amb['dist_l_parede']:.2f}", "m"),
             ("Iluminância Real Alcançada", "—", f"{amb['lux_real']:.2f}", "lx"),
             ("Potência Total", "—", f"{amb['pot_total']:.2f}", "W"),
@@ -338,37 +337,42 @@ with col_cli2:
     cli_email = st.text_input("E-mail do Cliente", value="", key="cli_email_input")
 
 st.markdown("---")
-st.markdown("### 🛋️ 2. Gerenciamento de Ambientes e Lâmpadas")
+st.markdown("### 🛋️ 2. Gerenciamento de Ambientes, Painéis, Spots e Fitas LED")
 
+# Bancos de dados na Session State separados por categoria
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
-        {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0},
-        {"Fabricante": "Emalux", "Modelo": "Luminária Comercial 2x18W LED", "Lumens": 3200, "Potencia": 36.0},
-        {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0},
+        {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
+        {"Fabricante": "Emalux", "Modelo": "Spot LED Direcionável 7W", "Lumens": 560, "Potencia": 7.0, "Tipo": "Spot"},
+        {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m (Metro)", "Lumens": 900, "Potencia": 10.0, "Tipo": "Fita LED"},
+        {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0, "Tipo": "Industrial"},
     ]
 
-with st.expander("⚙️ Gerenciar / Cadastrar Novas Luminárias no Banco"):
+with st.expander("⚙️ Gerenciar / Cadastrar Novas Fontes (Painéis, Spots, Fitas LED)"):
     with st.form("form_nova_lum"):
-        st.markdown("Adicione novos modelos ao seu banco de seleção rápida:")
-        col_fl1, col_fl2, col_fl3, col_fl4 = st.columns(4)
+        st.markdown("Adicione novos modelos (Luminárias, Spots ou Fitas LED) ao seu banco:")
+        col_fl1, col_fl2, col_fl3, col_fl4, col_fl5 = st.columns(5)
         with col_fl1:
-            novo_fab = st.text_input("Fabricante", value="Marca X")
+            novo_tipo = st.selectbox("Categoria", ["Painel/Luminária", "Spot", "Fita LED", "Industrial"])
         with col_fl2:
-            novo_mod = st.text_input("Modelo", value="Painel 30W")
+            novo_fab = st.text_input("Fabricante", value="Marca X")
         with col_fl3:
-            novo_lum = st.number_input("Fluxo (lm)", value=2400.0, step=100.0)
+            novo_mod = st.text_input("Modelo", value="Spot 7W / Fita 10W")
         with col_fl4:
-            nova_pot = st.number_input("Potência (W)", value=30.0, step=1.0)
+            novo_lum = st.number_input("Fluxo (lm)", value=800.0, step=50.0)
+        with col_fl5:
+            nova_pot = st.number_input("Potência (W)", value=10.0, step=1.0)
             
-        btn_salvar_lum = st.form_submit_button("Salvar Nova Luminária no Banco")
+        btn_salvar_lum = st.form_submit_button("Salvar no Banco de Equipamentos")
         if btn_salvar_lum:
             st.session_state.banco_luminarias.append({
                 "Fabricante": novo_fab,
                 "Modelo": novo_mod,
                 "Lumens": novo_lum,
-                "Potencia": nova_pot
+                "Potencia": nova_pot,
+                "Tipo": novo_tipo
             })
-            st.success(f"Luminária {novo_fab} - {novo_mod} adicionada com sucesso!")
+            st.success(f"Equipamento [{novo_tipo}] {novo_fab} - {novo_mod} adicionado com sucesso!")
 
 if "ambientes" not in st.session_state:
     st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
@@ -396,24 +400,32 @@ for amb_atual in st.session_state.ambientes:
         with col_n2:
             tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
-        st.markdown("##### 💡 Fonte Luminosa")
-        opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in st.session_state.banco_luminarias]
+        st.markdown("##### 💡 Seleção da Fonte Luminosa (Painéis, Spots ou Fitas LED)")
+        
+        # Filtro opcional por tipo para facilitar a busca
+        filtro_cat = st.radio("Filtrar por tipo de equipamento:", ["Todos", "Painel/Luminária", "Spot", "Fita LED", "Industrial"], horizontal=True, key=f"filtro_{amb_atual['id']}")
+        
+        banco_filtrado = st.session_state.banco_luminarias
+        if filtro_cat != "Todos":
+            banco_filtrado = [l for l in st.session_state.banco_luminarias if l.get("Tipo", "Painel/Luminária") == filtro_cat]
+
+        opcoes_banco_str = [f"[{l.get('Tipo', 'Lum.')}] {l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_filtrado]
         opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
         
-        escolha_banco = st.selectbox("Selecionar Luminária", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
+        escolha_banco = st.selectbox("Selecionar Equipamento", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
 
         if escolha_banco != "⚙️ Inserir Manual / Personalizado":
             idx_escolhido = opcoes_banco_str.index(escolha_banco)
-            lum_sel = st.session_state.banco_luminarias[idx_escolhido]
+            lum_sel = banco_filtrado[idx_escolhido]
             fluxo_lampada, potencia_lampada = lum_sel["Lumens"], lum_sel["Potencia"]
-            modelo_desc_relatorio = f"{lum_sel['Fabricante']} - {lum_sel['Modelo']}"
+            modelo_desc_relatorio = f"[{lum_sel.get('Tipo', 'Lum.')}] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
         else:
             col_m1, col_m2 = st.columns(2)
             with col_m1:
-                fluxo_lampada = st.number_input("Fluxo Luminoso (lm)", value=1800.0, step=100.0, key=f"fluxo_man_{amb_atual['id']}")
+                fluxo_lampada = st.number_input("Fluxo Luminoso por Unidade (lm)", value=800.0, step=50.0, key=f"fluxo_man_{amb_atual['id']}")
             with col_m2:
-                potencia_lampada = st.number_input("Potência da Luminária (W)", value=20.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
-            modelo_desc_relatorio = "Manual / Personalizado"
+                potencia_lampada = st.number_input("Potência da Unidade (W)", value=10.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
+            modelo_desc_relatorio = "Personalizado (Spot / Fita / Painel)"
 
         st.markdown("##### Geometria e Fatores")
         col_g1, col_g2, col_g3 = st.columns(3)
@@ -424,30 +436,21 @@ for amb_atual in st.session_state.ambientes:
             larg = st.number_input("Largura (m)", value=4.5, step=0.1, key=f"larg_{amb_atual['id']}")
             hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
         with col_g3:
-            hp_desc = st.number_input("Descimento da Luminária (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
+            hp_desc = st.number_input("Descimento do Plano (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
 
-        # Janelas com explicações detalhadas para os Fatores (Conforme solicitado)
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.50, 0.05, key=f"fu_{amb_atual['id']}")
             with st.expander("ℹ️ O que é o Fator de Utilização (u)?"):
                 st.markdown("""
-                O **Fator de Utilização ($u$)** representa a eficiência com que o fluxo luminoso emitido pelas luminárias atinge o plano de trabalho. 
-                Ele depende diretamente de:
-                - **Geometria do ambiente** (Índice do local $k$).
-                - **Reflexão das superfícies** (paredes, teto e piso).
-                - **Distribuição fotométrica** da luminária.
-                *Valores típicos variam de 0.3 (ambientes escuros/pequenos) a 0.8 (ambientes claros e amplos).*
+                O **Fator de Utilização ($u$)** representa a eficiência com que o fluxo luminoso emitido pelas luminárias ou spots atinge o plano de trabalho. 
+                Ele depende diretamente da geometria do ambiente e das reflexões das superfícies.
                 """)
         with col_f2:
             fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.75, 0.05, key=f"fd_{amb_atual['id']}")
             with st.expander("ℹ️ O que é o Fator de Depreciação (d)?"):
                 st.markdown("""
-                O **Fator de Depreciação ($d$)** — também conhecido como fator de manutenção — considera a queda do fluxo luminoso ao longo do tempo devido a:
-                - Acúmulo de poeira e sujeira nas luminárias e lâmpadas.
-                - Redução natural do fluxo luminoso da fonte de luz com o envelhecimento.
-                - Sujeira nas paredes e teto do ambiente.
-                *Valores usuais: 0.80 para ambientes limpos, 0.70 a 0.75 para ambientes padrão e abaixo de 0.65 para ambientes industriais severos.*
+                O **Fator de Depreciação ($d$)** considera a queda do fluxo luminoso ao longo do tempo devido ao acúmulo de poeira e envelhecimento da fonte luminosa (lâmpadas, fitas LED ou spots).
                 """)
 
         # --- MEMÓRIA DE CÁLCULO ---
@@ -466,7 +469,6 @@ for amb_atual in st.session_state.ambientes:
         colunas = math.ceil(math.sqrt(qtd_real * proporcao))
         linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
 
-        # Cálculo das distâncias entre luminárias e paredes
         dist_c_entre = comp / colunas if colunas > 0 else comp
         dist_c_parede = dist_c_entre / 2.0
         dist_l_entre = larg / linhas if linhas > 0 else larg
@@ -543,4 +545,3 @@ if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=T
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
-    
