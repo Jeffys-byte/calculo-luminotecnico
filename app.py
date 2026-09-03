@@ -124,7 +124,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
     data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
 
-    # Cabeçalho Geral do Relatório Consolidado
     p_t = doc.add_paragraph()
     r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO CONSOLIDADO")
     r_t.bold = True
@@ -141,7 +140,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
     doc.add_paragraph()
 
-    # Loop por cada ambiente dentro do mesmo arquivo único de relatório
     for idx, amb in enumerate(lista_ambientes):
         if idx > 0:
             doc.add_page_break()
@@ -226,8 +224,8 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         dados_bloco2 = [
             ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"),
-            ("Fonte Luminosa / Equipamento", "Φlâmpada", f"{amb['fluxo']:,.0f} lm".replace(",", "."), amb['modelo_lum']),
-            ("Potência Unitária", "Punit", f"{amb['potencia']:.1f} W", "Consumo (W)"),
+            ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
+            ("Potência Unitária", "Punit", f"{amb['pot_unidade_rel']:.2f}", amb['unidade_pot_desc']),
             ("Fator de Utilização", "u", f"{amb['fator_u']:.2f}", f"{amb['fator_u']:.2f} ({amb['desc_utilizacao']})"),
             ("Fator de Depreciação", "d", f"{amb['fator_d']:.2f}", f"{amb['fator_d']:.2f} ({amb['desc_depreciacao']})")
         ]
@@ -246,7 +244,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
-        # 3. Resultados do Dimensionamento
+        # 3. Resultados do Dimensionamento (Com Afastamento e Parede)
         h3 = doc.add_heading(level=2)
         r_h3 = h3.add_run("3. Resultados do Dimensionamento")
         r_h3.font.size = Pt(10.5)
@@ -273,12 +271,12 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
             ("Fluxo Luminoso Necessário", f"{amb['fluxo_req']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "—", "lm"),
             ("Fluxo Luminoso Instalado (Real)", f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "lm"),
             ("Diferencial de Fluxo (Variância)", f"{amb['variacao_fluxo_pct']:+.1f}%", f"{amb['variacao_fluxo_pct']:+.1f}%", "%"),
-            ("Qtd. de Equipamentos / Pontos", f"{amb['qtd_teorica']:.2f}", f"{amb['qtd_real']}", "un"),
-            ("Arranjo (Linhas x Colunas)", f"{amb['linhas']} x {amb['colunas']}", f"{amb['linhas']} x {amb['colunas']}", "arr."),
+            ("Qtd. de Equipamentos / Metragem", f"{amb['qtd_teorica']:.2f}", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']),
+            ("Arranjo (Linhas x Colunas / Perfil)", f"{amb['arranjo_str']}", f"{amb['arranjo_str']}", "arr."),
             ("Distância entre Pontos (C)", f"{amb['dist_c_entre']:.2f}", f"{amb['dist_c_entre']:.2f}", "m"),
-            ("Distância até Parede (C)", f"{amb['dist_c_parede']:.2f}", f"{amb['dist_c_parede']:.2f}", "m"),
+            ("Distância até Parede (C)", f"{amb['dist_c_parede']:.2f} (Metade)", f"{amb['dist_c_parede']:.2f}", "m"),
             ("Distância entre Pontos (L)", f"{amb['dist_l_entre']:.2f}", f"{amb['dist_l_entre']:.2f}", "m"),
-            ("Distância até Parede (L)", f"{amb['dist_l_parede']:.2f}", f"{amb['dist_l_parede']:.2f}", "m"),
+            ("Distância até Parede (L)", f"{amb['dist_l_parede']:.2f} (Metade)", f"{amb['dist_l_parede']:.2f}", "m"),
             ("Iluminância Real Alcançada", "—", f"{amb['lux_real']:.2f}", "lx"),
             ("Potência Total", "—", f"{amb['pot_total']:.2f}", "W"),
             ("Densidade de Potência (DPI)", "—", f"{amb['dpi']:.2f}", "W/m²")
@@ -365,9 +363,9 @@ with st.expander("⚙️ Gerenciar / Cadastrar Novas Fontes (Painéis, Spots, Fi
         with col_fl3:
             novo_mod = st.text_input("Modelo", value="Spot 7W / Fita 10W")
         with col_fl4:
-            novo_lum = st.number_input("Fluxo (lm)", value=800.0, step=50.0)
+            novo_lum = st.number_input("Fluxo (lm por unidade ou por metro)", value=800.0, step=50.0)
         with col_fl5:
-            nova_pot = st.number_input("Potência (W)", value=10.0, step=1.0)
+            nova_pot = st.number_input("Potência (W por unidade ou por metro)", value=10.0, step=1.0)
             
         btn_salvar_lum = st.form_submit_button("Salvar no Banco de Equipamentos")
         if btn_salvar_lum:
@@ -422,15 +420,18 @@ for amb_atual in st.session_state.ambientes:
         if escolha_banco != "⚙️ Inserir Manual / Personalizado":
             idx_escolhido = opcoes_banco_str.index(escolha_banco)
             lum_sel = banco_filtrado[idx_escolhido]
-            fluxo_lampada, potencia_lampada = lum_sel["Lumens"], lum_sel["Potencia"]
-            modelo_desc_relatorio = f"[{lum_sel.get('Tipo', 'Lum.')}] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
+            fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
+            tipo_equipamento = lum_sel.get("Tipo", "Painel/Luminária")
+            modelo_desc_relatorio = f"[{tipo_equipamento}] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
         else:
-            col_m1, col_m2 = st.columns(2)
+            col_m1, col_m2, col_m3 = st.columns(3)
             with col_m1:
-                fluxo_lampada = st.number_input("Fluxo Luminoso por Unidade (lm)", value=800.0, step=50.0, key=f"fluxo_man_{amb_atual['id']}")
+                tipo_equipamento = st.selectbox("Tipo de Equipamento Manual", ["Painel/Luminária", "Spot", "Fita LED", "Industrial"], key=f"tipo_man_{amb_atual['id']}")
             with col_m2:
-                potencia_lampada = st.number_input("Potência da Unidade (W)", value=10.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
-            modelo_desc_relatorio = "Personalizado (Spot / Fita / Painel)"
+                fluxo_base = st.number_input("Fluxo Luminoso (lm por un. ou por metro)", value=800.0, step=50.0, key=f"fluxo_man_{amb_atual['id']}")
+            with col_m3:
+                potencia_base = st.number_input("Potência (W por un. ou por metro)", value=10.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
+            modelo_desc_relatorio = f"[{tipo_equipamento}] Personalizado"
 
         st.markdown("##### Geometria e Fatores")
         col_g1, col_g2, col_g3 = st.columns(3)
@@ -446,17 +447,8 @@ for amb_atual in st.session_state.ambientes:
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.50, 0.05, key=f"fu_{amb_atual['id']}")
-            with st.expander("ℹ️ O que é o Fator de Utilização (u)?"):
-                st.markdown("""
-                O **Fator de Utilização ($u$)** representa a eficiência com que o fluxo luminoso emitido pelas luminárias ou spots atinge o plano de trabalho. 
-                Ele depende diretamente da geometria do ambiente e das reflexões das superfícies.
-                """)
         with col_f2:
             fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.75, 0.05, key=f"fd_{amb_atual['id']}")
-            with st.expander("ℹ️ O que é o Fator de Depreciação (d)?"):
-                st.markdown("""
-                O **Fator de Depreciação ($d$)** considera a queda do fluxo luminoso ao longo do tempo devido ao acúmulo de poeira e envelhecimento da fonte luminosa (lâmpadas, fitas LED ou spots).
-                """)
 
         # --- MEMÓRIA DE CÁLCULO ---
         area = comp * larg
@@ -465,23 +457,59 @@ for amb_atual in st.session_state.ambientes:
         lux_req = TABELA_NORMA[tipo_atividade]
 
         fluxo_req = (lux_req * area) / (fator_u * fator_d) if (fator_u * fator_d) > 0 else 0
-        qtd_teorica = fluxo_req / fluxo_lampada if fluxo_lampada > 0 else 0
-        qtd_real = math.ceil(qtd_teorica)
-        if qtd_real < 1:
-            qtd_real = 1
 
-        proporcao = comp / larg if larg > 0 else 1.0
-        colunas = math.ceil(math.sqrt(qtd_real * proporcao))
-        linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
+        # Tratamento específico para Fita LED (calculada por metro linear) vs Luminárias/Spots (unidades)
+        if tipo_equipamento == "Fita LED":
+            fluxo_metro = fluxo_base
+            pot_metro = potencia_base
+            qtd_teorica = fluxo_req / fluxo_metro if fluxo_metro > 0 else 0
+            qtd_real = math.ceil(qtd_teorica * 10) / 10 # Arredondado para decímetros/metros
+            if qtd_real < 1.0:
+                qtd_real = 1.0
+            
+            fluxo_instalado = qtd_real * fluxo_metro
+            pot_total = qtd_real * pot_metro
+            
+            # Para fita LED, espaçamento / distribuição perimetral ou linear equivalente
+            dist_c_entre = comp
+            dist_c_parede = 0.0
+            dist_l_entre = larg
+            dist_l_parede = 0.0
+            
+            qtd_real_str = f"{qtd_real:.1f} m"
+            unidade_medida_qtd = "m"
+            arranjo_str = "Perimetral / Linear"
+            fluxo_unidade_rel = fluxo_metro
+            pot_unidade_rel = pot_metro
+            unidade_pot_desc = "W/m (Consumo por Metro)"
+        else:
+            fluxo_lampada = fluxo_base
+            potencia_lampada = potencia_base
+            qtd_teorica = fluxo_req / fluxo_lampada if fluxo_lampada > 0 else 0
+            qtd_real = math.ceil(qtd_teorica)
+            if qtd_real < 1:
+                qtd_real = 1
 
-        dist_c_entre = comp / colunas if colunas > 0 else comp
-        dist_c_parede = dist_c_entre / 2.0
-        dist_l_entre = larg / linhas if linhas > 0 else larg
-        dist_l_parede = dist_l_entre / 2.0
+            proporcao = comp / larg if larg > 0 else 1.0
+            colunas = math.ceil(math.sqrt(qtd_real * proporcao))
+            linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
 
-        fluxo_instalado = qtd_real * fluxo_lampada
+            dist_c_entre = comp / colunas if colunas > 0 else comp
+            dist_c_parede = dist_c_entre / 2.0
+            dist_l_entre = larg / linhas if linhas > 0 else larg
+            dist_l_parede = dist_l_entre / 2.0
+
+            fluxo_instalado = qtd_real * fluxo_lampada
+            pot_total = qtd_real * potencia_lampada
+            
+            qtd_real_str = str(int(qtd_real))
+            unidade_medida_qtd = "un"
+            arranjo_str = f"{linhas} x {colunas}"
+            fluxo_unidade_rel = fluxo_lampada
+            pot_unidade_rel = potencia_lampada
+            unidade_pot_desc = "Consumo Unitário (W)"
+
         lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
-        pot_total = qtd_real * potencia_lampada
         dpi = pot_total / area if area > 0 else 0
         variacao_fluxo_pct = ((fluxo_instalado - fluxo_req) / fluxo_req) * 100 if fluxo_req > 0 else 0
         conforme = lux_real >= lux_req
@@ -499,8 +527,9 @@ for amb_atual in st.session_state.ambientes:
             "k_indice": k_indice,
             "lux_req": lux_req,
             "fluxo_req": fluxo_req,
-            "fluxo": fluxo_lampada,
-            "potencia": potencia_lampada,
+            "fluxo_unidade_rel": fluxo_unidade_rel,
+            "pot_unidade_rel": pot_unidade_rel,
+            "unidade_pot_desc": unidade_pot_desc,
             "fator_u": fator_u,
             "fator_d": fator_d,
             "desc_utilizacao": "Ambiente médio / Padrão",
@@ -508,9 +537,9 @@ for amb_atual in st.session_state.ambientes:
             "modelo_lum": modelo_desc_relatorio,
             "fluxo_instalado": fluxo_instalado,
             "qtd_teorica": qtd_teorica,
-            "qtd_real": qtd_real,
-            "linhas": linhas,
-            "colunas": colunas,
+            "qtd_real_str": qtd_real_str,
+            "unidade_medida_qtd": unidade_medida_qtd,
+            "arranjo_str": arranjo_str,
             "dist_c_entre": dist_c_entre,
             "dist_c_parede": dist_c_parede,
             "dist_l_entre": dist_l_entre,
@@ -550,3 +579,4 @@ if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_con
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
+    
