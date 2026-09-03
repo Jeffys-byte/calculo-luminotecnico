@@ -280,7 +280,23 @@ logo_upload = st.sidebar.file_uploader("Envie sua Logo (PNG/JPG)", type=["png", 
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
-titulo_prof = st.sidebar.selectbox("Categoria Profissional", ["Engenheiro(a) Eletricista", "Engenheiro(a) Civil", "Arquiteto(a) e Urbanista", "Técnico(a) em Eletrotecnica", "Designer de Interiores"])
+
+# AJUSTE: Categoria Profissional com opção "Personalizado"
+lista_cat_prof = [
+    "Engenheiro(a) Eletricista", 
+    "Engenheiro(a) Civil", 
+    "Arquiteto(a) e Urbanista", 
+    "Técnico(a) em Eletrotecnica", 
+    "Designer de Interiores",
+    "Personalizado (Digitar Outro)"
+]
+escolha_cat_prof = st.sidebar.selectbox("Categoria Profissional", lista_cat_prof)
+
+if escolha_cat_prof == "Personalizado (Digitar Outro)":
+    titulo_prof = st.sidebar.text_input("Digite o Título Profissional", "", placeholder="Ex: Projetista Luminotécnico")
+else:
+    titulo_prof = escolha_cat_prof
+
 prof_nome = st.sidebar.text_input("Nome do Profissional", "", placeholder="Seu Nome")
 prof_registro = st.sidebar.text_input("Registro (CREA / CAU / CFT)", "", placeholder="Ex: CREA/RJ 000.000")
 prof_contato = st.sidebar.text_input("E-mail / Contato", "", placeholder="contato@email.com")
@@ -361,7 +377,6 @@ for idx, tab in enumerate(tabs):
 
         st.markdown("#### Geometria e Seleção de Luminária")
         
-        # Seleção automática do Banco de Dados com preenchimento instantâneo
         opcoes_banco_str = [f"{item['Fabricante']} - {item['Modelo']} ({item['Lumens']} lm | {item['Potencia']} W)" for item in st.session_state["banco_luminarias"]]
         opcoes_banco_str.append("⚙️ Inserir Dados Manuais (Personalizado)")
         
@@ -392,7 +407,6 @@ for idx, tab in enumerate(tabs):
             lux_padrao = TABELA_NORMA[tipo_atividade]
             iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50, key=f"lux_{amb_atual['id']}")
             
-            # NOVO: Janela de Seleção para o Fator de Utilização (u)
             opcoes_utilizacao = {
                 "Ambiente Claro / Refletivo (u = 0.65)": 0.65,
                 "Ambiente Médio / Comercial Padrão (u = 0.50)": 0.50,
@@ -424,7 +438,6 @@ for idx, tab in enumerate(tabs):
             if modo_afastamento == "Fixo Personalizado":
                 afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05, key=f"afas_val_{amb_atual['id']}")
 
-        # Variáveis PRO padrão caso esteja na Versão Básica
         fita_comprimento = 0.0
         fita_pot_metro = 14.4
         fita_tensao = "12V"
@@ -516,7 +529,7 @@ st.subheader("📥 Emissão do Relatório Técnico Consolidado")
 
 dados_cliente = {"nome": cli_nome if cli_nome else "Cliente / Empreendimento"}
 dados_prof = {
-    "titulo": titulo_prof, 
+    "titulo": titulo_prof if titulo_prof else "Engenheiro(a) Eletricista", 
     "nome": prof_nome if prof_nome else "[Nome do Profissional]", 
     "registro": prof_registro if prof_registro else "[Registro]", 
     "contato": prof_contato if prof_contato else "[Contato]"
