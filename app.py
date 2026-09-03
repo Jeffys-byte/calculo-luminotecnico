@@ -192,7 +192,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
 
     p2 = doc.add_paragraph()
     p2.add_run("• Eficiência Energética: ").bold = True
-    p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², em conformidade com las diretrizes de eficiência energética.")
+    p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², em conformidade com as diretrizes de eficiência energética.")
 
     p3 = doc.add_paragraph()
     p3.add_run("• Status Final de Aprovação: ").bold = True
@@ -248,8 +248,8 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
 
-# Seleção Dinâmica da Profissão / Categoria
-lista_profissoes = [
+# Seleção Limpa da Categoria Profissional
+lista_categorias = [
     "Engenheiro(a) Eletricista",
     "Engenheiro(a) Civil",
     "Arquiteto(a) e Urbanista",
@@ -257,12 +257,12 @@ lista_profissoes = [
     "Designer de Interiores",
     "Outro (Personalizado)"
 ]
-escolha_profissao = st.sidebar.selectbox("Profissão / Cargo", lista_profissoes)
+escolha_categoria = st.sidebar.selectbox("Categoria Profissional", lista_categorias)
 
-if escolha_profissao == "Outro (Personalizado)":
-    titulo_prof = st.sidebar.text_input("Digite o Título Profissional", "Especialista em Iluminação")
+if escolha_categoria == "Outro (Personalizado)":
+    titulo_prof = st.sidebar.text_input("Digite o Título/Cargo", "Especialista em Iluminação")
 else:
-    titulo_prof = escolha_profissao
+    titulo_prof = escolha_categoria
 
 prof_nome = st.sidebar.text_input("Nome do Profissional", "Jefferson Barcellos Borges")
 prof_registro = st.sidebar.text_input("Registro (CREA / CAU / CFT)", "CREA/RJ 2026.000")
@@ -483,3 +483,4 @@ else:
             use_container_width=True
         )
     st.info("🔒 Assine o **Plano PRO** para consolidar múltiplos ambientes em um único arquivo de relatório.")
+    
