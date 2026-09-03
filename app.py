@@ -168,7 +168,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
             ["Fluxo Luminoso da Luminária", "Φlâmpada", f"{fluxo_fmt} lm", d.get('modelo_lum', 'Manual')],
             ["Potência Unitária da Luminária", "Punit", f"{d['potencia']:.1f} W", "Consumo (W)"],
             ["Índice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria (C × L) / [hu × (C + L)]"],
-            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância do ambiente"],
+            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", f"Refletância: {d['desc_utilizacao']}"],
             ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", f"Manutenção: {d['desc_depreciacao']}"]
         ]
     )
@@ -256,19 +256,21 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
 # --- INTERFACE WEB STREAMLIT ---
 st.set_page_config(page_title="Sistema Luminotécnico", layout="wide")
 
-# Barra Lateral (Controle de Planos e Licenciamento)
-st.sidebar.header("🔑 Licenciamento do Sistema")
-tipo_licenca = st.sidebar.selectbox("Plano Ativo", ["Plano Básico (Gratuito/Demo)", "Plano PRO (Assinatura Anual)"])
-is_pro = tipo_licenca == "Plano PRO (Assinatura Anual)"
+# Barra Lateral (Controle de Versão e Licenciamento)
+st.sidebar.header("🔑 Versão do Sistema")
+tipo_versao = st.sidebar.selectbox("Selecionar Versão", ["Versão Básica", "Versão PRO (Com Fitas LED & Spots)"])
+is_pro = tipo_versao == "Versão PRO (Com Fitas LED & Spots)"
 
 if not is_pro:
-    st.sidebar.info("💡 Você está no **Plano Básico** (limitado a 1 ambiente por projeto, sem Fitas LED/Spots). Assine o **PRO** para liberar todos os recursos.")
+    st.sidebar.info("💡 Você está na **Versão Básica** (Múltiplos ambientes liberados, sem o Módulo de Fitas LED/Spots). Mude para **PRO** para liberar as fitas.")
+else:
+    st.sidebar.success("🚀 **Versão PRO Ativa:** Recursos completos com dimensionamento de Fitas LED e Spots.")
 
-# TÍTULO DINÂMICO (Muda de acordo com o plano selecionado)
+# TÍTULO DINÂMICO
 if is_pro:
     st.title("⚡ Luminotécnica PRO")
 else:
-    st.title("⚡ Sistema Luminotécnico")
+    st.title("⚡ Sistema Luminotécnico - Versão Básica")
 
 st.write("Dimensionamento Luminotécnico Automatizado e Validação Normativa.")
 
@@ -334,12 +336,9 @@ if "ambientes_lista" not in st.session_state:
 col_btn1, col_btn2 = st.columns([1, 4])
 with col_btn1:
     if st.button("➕ Adicionar Novo Ambiente", use_container_width=True):
-        if is_pro:
-            novo_id = max([a["id"] for a in st.session_state["ambientes_lista"]], default=0) + 1
-            st.session_state["ambientes_lista"].append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
-            st.rerun()
-        else:
-            st.warning("⚠️ O **Plano Básico** permite apenas 1 ambiente. Faça upgrade para o **Plano PRO** para múltiplos ambientes.")
+        novo_id = max([a["id"] for a in st.session_state["ambientes_lista"]], default=0) + 1
+        st.session_state["ambientes_lista"].append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
+        st.rerun()
 
 lista_calculos_ambientes = []
 nomes_abas = [amb["nome"] for amb in st.session_state["ambientes_lista"]]
@@ -392,8 +391,23 @@ for idx, tab in enumerate(tabs):
         with col_b:
             lux_padrao = TABELA_NORMA[tipo_atividade]
             iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50, key=f"lux_{amb_atual['id']}")
-            fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01, key=f"fu_{amb_atual['id']}")
             
+            # NOVO: Janela de Seleção para o Fator de Utilização (u)
+            opcoes_utilizacao = {
+                "Ambiente Claro / Refletivo (u = 0.65)": 0.65,
+                "Ambiente Médio / Comercial Padrão (u = 0.50)": 0.50,
+                "Ambiente Escuro / Industrial (u = 0.35)": 0.35,
+                "Valor Personalizado (Manual)": -1.0
+            }
+            escolha_ut_sel = st.selectbox("Fator de Utilização (u)", list(opcoes_utilizacao.keys()), key=f"ut_sel_{amb_atual['id']}")
+            
+            if opcoes_utilizacao[escolha_ut_sel] != -1.0:
+                fator_u = opcoes_utilizacao[escolha_ut_sel]
+                desc_utilizacao = escolha_ut_sel
+            else:
+                fator_u = st.number_input("Digite o Fator de Utilização (u)", min_value=0.05, max_value=1.0, value=0.50, step=0.01, key=f"ut_man_{amb_atual['id']}")
+                desc_utilizacao = "Personalizado (Manual)"
+
             opcoes_depreciacao = {
                 "Ambiente Limpo / Residencial (0.80)": 0.80,
                 "Ambiente Comercial / Escritório (0.75)": 0.75,
@@ -410,7 +424,7 @@ for idx, tab in enumerate(tabs):
             if modo_afastamento == "Fixo Personalizado":
                 afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05, key=f"afas_val_{amb_atual['id']}")
 
-        # Variáveis PRO padrão caso esteja no Plano Básico
+        # Variáveis PRO padrão caso esteja na Versão Básica
         fita_comprimento = 0.0
         fita_pot_metro = 14.4
         fita_tensao = "12V"
@@ -433,8 +447,6 @@ for idx, tab in enumerate(tabs):
                 hu_calc_temp = max(pe_direito - hp - hp_desc, 0.1)
                 spot_diametro = 2 * hu_calc_temp * math.tan(math.radians(spot_angulo / 2.0))
                 st.metric("Diâmetro da Mancha de Luz", f"{spot_diametro:.2f} m")
-        else:
-            st.info("🔒 O Módulo PRO de Fitas LED e Spots está disponível apenas no **Plano PRO**.")
 
         area = comprimento * largura
         hu = max(pe_direito - hp - hp_desc, 0.1)
@@ -484,8 +496,8 @@ for idx, tab in enumerate(tabs):
             "area": area, "hu": hu, "lux_req": iluminancia_req,
             "fluxo": fluxo_lampada, "potencia": potencia_lampada,
             "modelo_lum": modelo_desc_relatorio,
-            "k_indice": k_indice, "fator_u": fator_u, "fator_d": fator_d,
-            "desc_depreciacao": desc_depreciacao,
+            "k_indice": k_indice, "fator_u": fator_u, "desc_utilizacao": desc_utilizacao, 
+            "fator_d": fator_d, "desc_depreciacao": desc_depreciacao,
             "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
             "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado,
             "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi,
@@ -500,7 +512,7 @@ for idx, tab in enumerate(tabs):
         })
 
 st.markdown("---")
-st.subheader("📥 Emissão do Relatório Técnico")
+st.subheader("📥 Emissão do Relatório Técnico Consolidado")
 
 dados_cliente = {"nome": cli_nome if cli_nome else "Cliente / Empreendimento"}
 dados_prof = {
@@ -510,23 +522,11 @@ dados_prof = {
     "contato": prof_contato if prof_contato else "[Contato]"
 }
 
-if is_pro:
-    docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_file=logo_upload)
-    st.download_button(
-        label="📝 Baixar Relatório Técnico Consolidado em Word (.DOCX)",
-        data=docx_bytes,
-        file_name="Relatorio_Luminotecnico_Consolidado.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True
-    )
-else:
-    if len(lista_calculos_ambientes) > 0:
-        docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, [lista_calculos_ambientes[0]], logo_file=logo_upload)
-        st.download_button(
-            label="📝 Baixar Relatório Técnico em Word (.DOCX)",
-            data=docx_bytes,
-            file_name="Relatorio_Luminotecnico.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
-        )
-    st.info("🔒 No **Plano Básico**, é gerado o relatório individual do ambiente. Faça upgrade para o **Plano PRO** para consolidar múltiplos ambientes em um único arquivo.")
+docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_file=logo_upload)
+st.download_button(
+    label="📝 Baixar Relatório Técnico Consolidado em Word (.DOCX)",
+    data=docx_bytes,
+    file_name="Relatorio_Luminotecnico_Consolidado.docx",
+    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    use_container_width=True
+)
