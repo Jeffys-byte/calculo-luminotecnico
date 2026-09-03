@@ -1,13 +1,23 @@
 import streamlit as st
 import docx
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 
 # --- FUNÇÃO DE GERAÇÃO DO DOCUMENTO EM MEMÓRIA ---
-def gerar_documento_docx(nome_ambiente, comprimento, largura, pe_direito, iluminancia_requerida, fluxo_lampada, potencia_lampada):
+def gerar_documento_docx(nome_ambiente, comprimento, largura, pe_direito, iluminancia_requerida, fluxo_lampada, potencia_lampada, logo_file=None):
     doc = docx.Document()
     
+    # Se o usuário enviou uma logo, insere no topo do documento
+    if logo_file is not None:
+        p_logo = doc.add_paragraph()
+        p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Reseta o ponteiro do arquivo enviado para garantir a leitura correta
+        logo_file.seek(0)
+        # Adiciona a imagem com largura ajustada para 2 polegadas
+        p_logo.add_run().add_picture(logo_file, width=Inches(2.0))
+        doc.add_paragraph()  # Linha em branco para espaçamento
+
     # Título
     p_titulo = doc.add_paragraph()
     run_titulo = p_titulo.add_run(f"MEMORIAL DE CÁLCULO LUMINOTÉCNICO\n{nome_ambiente.upper()}")
@@ -53,6 +63,13 @@ st.set_page_config(page_title="Cálculo Luminotécnico NBR 8995-1", layout="wide
 
 st.title("⚡ Gerador de Memorial Luminotécnico")
 st.write("Dimensionamento baseado na NBR ISO/CIE 8995-1 com exportação de relatórios.")
+
+# Campo para o cliente anexar a própria logotipo
+st.sidebar.header("🎨 Personalização da Marca")
+logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG, JPG)", type=["png", "jpg", "jpeg"])
+
+if logo_upload is not None:
+    st.sidebar.image(logo_upload, caption="Pré-visualização da Logo", use_container_width=True)
 
 TABELA_NORMA = {
     "Escritórios - Escrever, digitar, ler, processar dados": 500,
@@ -109,7 +126,7 @@ with tab1:
 
     st.markdown("---")
     
-    # Geração do arquivo em memória para download
+    # Geração do arquivo em memória para download (passando a logo se existir)
     buffer_doc = gerar_documento_docx(
         nome_ambiente=nome_ambiente,
         comprimento=comprimento,
@@ -117,7 +134,8 @@ with tab1:
         pe_direito=pe_direito,
         iluminancia_requerida=iluminancia,
         fluxo_lampada=fluxo,
-        potencia_lampada=potencia
+        potencia_lampada=potencia,
+        logo_file=logo_upload
     )
     
     nome_sanitizado = nome_ambiente.replace(" ", "_")
@@ -160,7 +178,8 @@ with tab2:
                 pe_direito=item["pe_direito"],
                 iluminancia_requerida=item["iluminancia"],
                 fluxo_lampada=item["fluxo"],
-                potencia_lampada=item["potencia"]
+                potencia_lampada=item["potencia"],
+                logo_file=logo_upload
             )
             st.download_button(
                 label=f"📥 Baixar Memorial: {item['nome']} (.DOCX)",
@@ -169,5 +188,3 @@ with tab2:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 key=f"btn_lote_{idx}"
             )
-streamlit
-python-docx
