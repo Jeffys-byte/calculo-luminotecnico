@@ -1,5 +1,15 @@
 
+import streamlit as st
+import sqlite3
+from docx import Document
+import mercadopago
 
+# Nome do arquivo do banco de dados de usuários
+ARQUIVO_DB_USUARIOS = "usuarios.db"
+
+# Configuração do Token do Mercado Pago
+ACCESS_TOKEN_MP = "APP_USR-556244363968444-090314-235a12713b7c8a5fe8a8747b0e596775-3660992457"
+sdk = mercadopago.SDK(ACCESS_TOKEN_MP)
 # --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
 ARQUIVO_DB_USUARIOS = "usuarios_sistema.db"
 
