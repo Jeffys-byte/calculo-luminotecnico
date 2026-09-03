@@ -57,7 +57,6 @@ def format_table_rows(table, col_widths=None):
 
 # --- FUNÇÃO DE GERAÇÃO DE RELATÓRIO POR AMBIENTE ---
 def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
-    # Cabeçalho do Ambiente
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_titulo.paragraph_format.space_before = Pt(12)
@@ -153,7 +152,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ]
     )
 
-    # 4. Módulo PRO (Fitas LED e Spots) se aplicável
+    # 4. Módulo PRO se aplicável
     if d.get("usar_pro", False):
         adicionar_secao_tabela(
             "4. Módulo PRO: Detalhamento de Fitas LED e Spots",
@@ -177,8 +176,8 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ]
     )
 
-    # 6. Parecer Técnico e Disclaimer
-    doc.add_heading("6. Parecer Técnico e Isenção de Responsabilidade", level=2)
+    # 6. Parecer Técnico
+    doc.add_heading("6. Parecer Técnico e Conclusão Normativa", level=2)
     
     p1 = doc.add_paragraph()
     p1.add_run("• Nível de Iluminância: ").bold = True
@@ -193,18 +192,8 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², em conformidade com as diretrizes de eficiência energética.")
 
     p3 = doc.add_paragraph()
-    p3.add_run("• Disclaimer Técnico e Jurídico: ").bold = True
-    p3.add_run(
-        "Este relatório foi gerado por meio de algoritmos computacionais baseados em métodos normativos (Método dos Lúmens). "
-        "A validação final, especificações de campo, compatibilização arquitetônica e emissão da ART (Anotação de Responsabilidade Técnica) "
-        "ou RRT são de inteira responsabilidade do engenheiro ou projetista habilitado signatário deste documento. "
-        "O autor do software isenta-se de eventuais divergências decorrentes de condições construtivas reais, refletâncias atípicas ou quedas de tensão não previstas em campo."
-    )
-    p3.runs[1].italic = True
-
-    p4 = doc.add_paragraph()
-    p4.add_run("• Status Final de Aprovação: ").bold = True
-    run_status = p4.add_run("CONFORME (Aprovado para detalhamento em projeto executivo)." if d['conforme'] else "NÃO CONFORME (Requer ajustes de projeto).")
+    p3.add_run("• Status Final de Aprovação: ").bold = True
+    run_status = p3.add_run("CONFORME (Aprovado para detalhamento em projeto executivo)." if d['conforme'] else "NÃO CONFORME (Requer ajustes de projeto).")
     run_status.bold = True
     run_status.font.color.rgb = RGBColor(38, 128, 0) if d['conforme'] else RGBColor(200, 0, 0)
 
@@ -235,43 +224,19 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- FUNÇÃO DE GERAÇÃO INDIVIDUAL ---
-def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
-    doc = docx.Document()
-    sections = doc.sections
-    for section in sections:
-        section.top_margin = Inches(0.8)
-        section.bottom_margin = Inches(0.8)
-        section.left_margin = Inches(0.8)
-        section.right_margin = Inches(0.8)
-
-    if logo_file is not None:
-        p_logo = doc.add_paragraph()
-        p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        logo_file.seek(0)
-        p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
-        doc.add_paragraph()
-
-    adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
-
 # --- INTERFACE WEB STREAMLIT ---
 st.set_page_config(page_title="Luminotécnica PRO", layout="wide")
 
 st.title("⚡ Luminotécnica PRO")
 st.write("Dimensionamento Avançado, Cálculos para Fitas LED, Spots e Geração de Relatórios com Validação Normativa.")
 
-# Barra Lateral: Licenciamento, Marca e Responsável
+# Barra Lateral
 st.sidebar.header("🔑 Licenciamento do Sistema")
 tipo_licenca = st.sidebar.selectbox("Plano Ativo", ["Plano Básico (Gratuito/Demo)", "Plano PRO (Assinatura Anual)"])
 is_pro = tipo_licenca == "Plano PRO (Assinatura Anual)"
 
 if not is_pro:
-    st.sidebar.info("💡 Você está no **Plano Básico**. Assine o **Plano PRO** para liberar o Módulo de Fitas LED, Spots, Queda de Tensão e exportação de relatórios completos.")
+    st.sidebar.info("💡 Você está no **Plano Básico**. Assine o **Plano PRO** para liberar o Módulo de Fitas LED, Spots, Queda de Tensão e adição de múltiplos ambientes.")
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎨 Personalização da Marca")
@@ -279,9 +244,9 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
-prof_nome = st.sidebar.text_input("Nome do Profissional", "Eng. Jefferson Borges")
+prof_nome = st.sidebar.text_input("Nome do Profissional", "Eng. Responsável")
 prof_registro = st.sidebar.text_input("Registro (CREA / CFT)", "CREA/RJ 2026.000")
-prof_contato = st.sidebar.text_input("Contato / E-mail", "contato@powerenergy.com.br")
+prof_contato = st.sidebar.text_input("Contato / E-mail", "contato@empresa.com.br")
 
 TABELA_NORMA = {
     "Dormitórios / Suítes (Residencial)": 200,
@@ -291,248 +256,182 @@ TABELA_NORMA = {
     "Corredores e Áreas de Circulação": 100,
 }
 
-tab1, tab2 = st.tabs(["📐 Dimensionamento Principal & PRO", "📋 Relatórios em Lote"])
+# Configuração de Gerenciamento de Ambientes Dinâmicos na mesma página
+st.subheader("1. Identificação Geral do Projeto")
+cli_nome = st.text_input("Cliente / Empreendimento", "Residência Unifamiliar")
 
-with tab1:
-    st.subheader("1. Identificação do Projeto e Recinto")
-    col_c1, col_c2, col_c3 = st.columns(3)
-    cli_nome = col_c1.text_input("Cliente / Empreendimento", "Residência Unifamiliar")
-    nome_ambiente = col_c2.text_input("Nome / Identificação do Ambiente", "Living Integrado")
-    tipo_atividade = col_c3.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()))
+st.markdown("---")
+st.subheader("2. Gerenciamento de Ambientes do Projeto")
 
-    st.markdown("---")
-    st.subheader("2. Geometria e Parâmetros da Luminária")
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        st.markdown("**Geometria do Espaço**")
-        comprimento = st.number_input("Comprimento C (m)", value=6.00, step=0.1)
-        largura = st.number_input("Largura L (m)", value=4.50, step=0.1)
-        pe_direito = st.number_input("Pé-Direito Total H (m)", value=2.90, step=0.1)
-        hp = st.number_input("Altura do Plano de Trabalho hp (m)", value=0.75, step=0.05)
-        hp_desc = st.number_input("Pendotamento / Descimento hp' (m)", value=0.00, step=0.05)
+if "ambientes_lista" not in st.session_state:
+    st.session_state["ambientes_lista"] = [{"id": 1, "nome": "Living Integrado"}]
 
-    with col_b:
-        st.markdown("**Parâmetros Luminotécnicos & Afastamentos**")
-        lux_padrao = TABELA_NORMA[tipo_atividade]
-        iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50)
-        fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=2000, step=100)
-        potencia_lampada = st.number_input("Potência Unitária da Luminária (W)", value=20, step=1)
-        fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01)
-        fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05)
-        razao_max_input = st.slider("Razão Máx. de Espaçamento (Emax / hu)", 1.0, 2.0, 1.25, step=0.05)
-        modo_afastamento = st.selectbox("Critério de Afastamento das Paredes", ["Proporcional (S/2)", "Fixo Personalizado"])
-        afastamento_fixo_val = 0.50
-        if modo_afastamento == "Fixo Personalizado":
-            afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05)
-
-    # --- MÓDULO PRO: FITAS LED E SPOTS ---
-    fita_comprimento = 0.0
-    fita_pot_metro = 14.4
-    fita_tensao = "12V"
-    fita_pot_total = 0.0
-    fita_fonte_rec = 0.0
-    spot_angulo = 36
-    spot_diametro = 0.0
-
-    if is_pro:
-        st.markdown("---")
-        st.subheader("🔥 Módulo PRO: Fitas LED (Sancas/Perfis) & Spots de Destaque")
-        col_pro1, col_pro2 = st.columns(2)
-        
-        with col_pro1:
-            st.markdown("**Dimensionamento de Fitas LED**")
-            fita_comprimento = st.number_input("Comprimento Linear da Fita / Sanca (m)", value=10.5, step=0.5)
-            fita_pot_metro = st.selectbox("Potência da Fita LED (W/m)", [4.8, 9.6, 14.4, 19.2, 24.0], index=2)
-            fita_tensao = st.selectbox("Tensão de Operação da Fita", ["12V", "24V"])
-            
-            fita_pot_total = fita_comprimento * fita_pot_metro
-            # Margem de segurança recomendada de 20% para a fonte chaveada
-            fita_fonte_rec = fita_pot_total * 1.20
-
-        with col_pro2:
-            st.markdown("**Dimensionamento de Spots (Facho e Diâmetro)**")
-            spot_angulo = st.slider("Abertura do Feixe do Spot (Graus)", 15, 60, 38, step=1)
-            # Cálculo trigonométrico do diâmetro da mancha de luz: D = 2 * hu * tan(angulo / 2 em radianos)
-            hu_calc_temp = max(pe_direito - hp - hp_desc, 0.1)
-            spot_diametro = 2 * hu_calc_temp * math.tan(math.radians(spot_angulo / 2.0))
-            st.metric("Diâmetro da Mancha de Luz no Piso", f"{spot_diametro:.2f} m", f"Altura útil: {hu_calc_temp:.2f} m")
-    else:
-        st.markdown("---")
-        st.info("🔒 **Módulo PRO Bloqueado:** Mude para o **Plano PRO** na barra lateral para calcular fontes de Fita LED, queda de tensão e geometria de feixes de Spots.")
-
-    # Cálculos gerais
-    area = comprimento * largura
-    hu = pe_direito - hp - hp_desc
-    hu = max(hu, 0.1)
-    
-    k_indice = (comprimento * largura) / (hu * (comprimento + largura))
-    fluxo_req_teorico = (iluminancia_req * area) / (fator_u * fator_d)
-    qtd_teorica = fluxo_req_teorico / fluxo_lampada if fluxo_lampada > 0 else 0
-    qtd_real = math.ceil(qtd_teorica)
-    
-    fluxo_instalado = qtd_real * fluxo_lampada
-    lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
-    pot_total = qtd_real * potencia_lampada
-    dpi = pot_total / area if area > 0 else 0
-    conforme = lux_real >= iluminancia_req
-
-    ratio = comprimento / largura if largura > 0 else 1
-    colunas = max(1, round(math.sqrt(qtd_real / ratio)))
-    linhas = max(1, math.ceil(qtd_real / colunas))
-    
-    dist_c = comprimento / linhas if linhas > 0 else 0
-    dist_l = largura / colunas if colunas > 0 else 0
-
-    if modo_afastamento == "Proporcional (S/2)":
-        dist_parede_c = dist_c / 2
-        dist_parede_l = dist_l / 2
-    else:
-        dist_parede_c = afastamento_fixo_val
-        dist_parede_l = afastamento_fixo_val
-
-    maior_espacamento = max(dist_c, dist_l)
-    razao_atual = maior_espacamento / hu if hu > 0 else 0
-    espacamento_ok = razao_atual <= razao_max_input
-
-    dados_calculados = {
-        "nome": nome_ambiente, "comp": comprimento, "larg": largura,
-        "pe_direito": pe_direito, "hp": hp, "hp_desc": hp_desc,
-        "area": area, "hu": hu, "lux_req": iluminancia_req,
-        "fluxo": fluxo_lampada, "potencia": potencia_lampada,
-        "k_indice": k_indice, "fator_u": fator_u, "fator_d": fator_d,
-        "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
-        "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado,
-        "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi,
-        "conforme": conforme, "linhas": linhas, "colunas": colunas,
-        "dist_c": dist_c, "dist_parede_c": dist_parede_c,
-        "dist_l": dist_l, "dist_parede_l": dist_parede_l,
-        "modo_afastamento": modo_afastamento, "afastamento_fixo": afastamento_fixo_val,
-        "razao_max": razao_max_input, "razao_atual": razao_atual, "espacamento_ok": espacamento_ok,
-        "usar_pro": is_pro, "fita_comprimento": fita_comprimento, "fita_pot_metro": fita_pot_metro,
-        "fita_tensao": fita_tensao, "fita_pot_total": fita_pot_total, "fita_fonte_rec": fita_fonte_rec,
-        "spot_angulo": spot_angulo, "spot_diametro": spot_diametro
-    }
-
-    st.markdown("---")
-    st.subheader("📊 Resultados Analíticos & Parecer Normativo")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Área Total", f"{area:.2f} m²")
-    col2.metric("Índice do Recinto (K)", f"{k_indice:.2f}")
-    col3.metric("Luminárias Recomendadas", f"{qtd_real} un", f"Mínimo: {qtd_teorica:.2f}")
-    col4.metric("Iluminância Alcançada", f"{lux_real:.2f} lx", delta=f"{lux_real - iluminancia_req:+.2f} lx")
-
-    if conforme:
-        st.success(f"✅ **CONFORME NBR ISO/CIE 8995-1:** O nível luminoso ({lux_real:.2f} lx) atende à meta da atividade.")
-    else:
-        st.warning(f"⚠️ **NÃO CONFORME:** Nível calculado abaixo da exigência de {iluminancia_req} lx.")
-
-    if espacamento_ok:
-        st.info(f"✨ **ESPAÇAMENTO SEGURO:** Razão atual ({razao_atual:.2f}) dentro do limite máximo de {razao_max_input:.2f}.")
-    else:
-        st.error(f"⚠️ **ALERTA DE ESPAÇAMENTO:** Razão atual ({razao_atual:.2f}) excede o limite estipulado de {razao_max_input:.2f}.")
-
-    if is_pro:
-        st.markdown("---")
-        st.markdown("### 🔌 Diagnóstico do Módulo PRO (Fitas LED)")
-        col_res1, col_res2 = st.columns(2)
-        col_res1.metric("Potência Total Fita LED", f"{fita_pot_total:.1f} W", f"Fonte Recomendada: {fita_fonte_rec:.1f} W (c/ 20% margem)")
-        if fita_comprimento <= 5.0:
-            col_res2.success("✅ **Queda de Tensão:** Trecho contínuo seguro ($\le 5\text{m}$).")
+col_btn1, col_btn2 = st.columns([1, 4])
+with col_btn1:
+    if st.button("➕ Adicionar Novo Ambiente", use_container_width=True):
+        if is_pro or len(st.session_state["ambientes_lista"]) < 1:
+            novo_id = max([a["id"] for a in st.session_state["ambientes_lista"]], default=0) + 1
+            st.session_state["ambientes_lista"].append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
+            st.rerun()
         else:
-            col_res2.error("⚠️ **ALERTA DE QUEDA DE TENSÃO:** Trecho $> 5\text{m}$. Obrigatória injeção de energia nas extremidades conforme NBR 5410.")
+            st.warning("⚠️ No Plano Básico é permitido apenas 1 ambiente. Faça upgrade para o Plano PRO para adicionar múltiplos ambientes.")
 
-    st.markdown("---")
-    
-    dados_cliente = {"nome": cli_nome}
-    dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
-    nome_sanitizado = nome_ambiente.replace(" ", "_")
-    
-    if is_pro:
-        docx_data = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
+lista_calculos_ambientes = []
+
+# Criar abas dinâmicas para cada ambiente adicionado na mesma página
+nomes_abas = [amb["nome"] for amb in st.session_state["ambientes_lista"]]
+tabs = st.tabs(nomes_abas)
+
+for idx, tab in enumerate(tabs):
+    amb_atual = st.session_state["ambientes_lista"][idx]
+    with tab:
+        col_cab1, col_cab2 = st.columns([3, 1])
+        with col_cab1:
+            novo_nome = st.text_input("Nome do Ambiente", amb_atual["nome"], key=f"nome_amb_{amb_atual['id']}")
+            st.session_state["ambientes_lista"][idx]["nome"] = novo_nome
+        with col_cab2:
+            if len(st.session_state["ambientes_lista"]) > 1:
+                if st.button("🗑️ Remover", key=f"del_{amb_atual['id']}"):
+                    st.session_state["ambientes_lista"].pop(idx)
+                    st.rerun()
+
+        tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
+
+        st.markdown("#### Geometria e Parâmetros")
+        col_a, col_b = st.columns(2)
+        
+        with col_a:
+            comprimento = st.number_input("Comprimento C (m)", value=6.00, step=0.1, key=f"comp_{amb_atual['id']}")
+            largura = st.number_input("Largura L (m)", value=4.50, step=0.1, key=f"larg_{amb_atual['id']}")
+            pe_direito = st.number_input("Pé-Direito Total H (m)", value=2.90, step=0.1, key=f"ped_{amb_atual['id']}")
+            hp = st.number_input("Altura do Plano de Trabalho hp (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
+            hp_desc = st.number_input("Pendotamento / Descimento hp' (m)", value=0.00, step=0.05, key=f"hpd_{amb_atual['id']}")
+
+        with col_b:
+            lux_padrao = TABELA_NORMA[tipo_atividade]
+            iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50, key=f"lux_{amb_atual['id']}")
+            fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=2000, step=100, key=f"flux_{amb_atual['id']}")
+            potencia_lampada = st.number_input("Potência Unitária da Luminária (W)", value=20, step=1, key=f"pot_{amb_atual['id']}")
+            fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01, key=f"fu_{amb_atual['id']}")
+            fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05, key=f"fd_{amb_atual['id']}")
+            razao_max_input = st.slider("Razão Máx. de Espaçamento (Emax / hu)", 1.0, 2.0, 1.25, step=0.05, key=f"rz_{amb_atual['id']}")
+            modo_afastamento = st.selectbox("Critério de Afastamento das Paredes", ["Proporcional (S/2)", "Fixo Personalizado"], key=f"afas_{amb_atual['id']}")
+            afastamento_fixo_val = 0.50
+            if modo_afastamento == "Fixo Personalizado":
+                afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05, key=f"afas_val_{amb_atual['id']}")
+
+        # Módulo PRO para a aba atual se aplicável
+        fita_comprimento = 0.0
+        fita_pot_metro = 14.4
+        fita_tensao = "12V"
+        fita_pot_total = 0.0
+        fita_fonte_rec = 0.0
+        spot_angulo = 38
+        spot_diametro = 0.0
+
+        if is_pro:
+            st.markdown("#### 🔥 Módulo PRO: Fitas LED & Spots")
+            col_pro1, col_pro2 = st.columns(2)
+            with col_pro1:
+                fita_comprimento = st.number_input("Comprimento Linear da Fita / Sanca (m)", value=10.5, step=0.5, key=f"fita_c_{amb_atual['id']}")
+                fita_pot_metro = st.selectbox("Potência da Fita LED (W/m)", [4.8, 9.6, 14.4, 19.2, 24.0], index=2, key=f"fita_p_{amb_atual['id']}")
+                fita_tensao = st.selectbox("Tensão de Operação", ["12V", "24V"], key=f"fita_t_{amb_atual['id']}")
+                fita_pot_total = fita_comprimento * fita_pot_metro
+                fita_fonte_rec = fita_pot_total * 1.20
+            with col_pro2:
+                spot_angulo = st.slider("Abertura do Feixe do Spot (Graus)", 15, 60, 38, step=1, key=f"spot_a_{amb_atual['id']}")
+                hu_calc_temp = max(pe_direito - hp - hp_desc, 0.1)
+                spot_diametro = 2 * hu_calc_temp * math.tan(math.radians(spot_angulo / 2.0))
+                st.metric("Diâmetro da Mancha de Luz", f"{spot_diametro:.2f} m")
+
+        # Processamento dos cálculos
+        area = comprimento * largura
+        hu = max(pe_direito - hp - hp_desc, 0.1)
+        k_indice = (comprimento * largura) / (hu * (comprimento + largura))
+        fluxo_req_teorico = (iluminancia_req * area) / (fator_u * fator_d)
+        qtd_teorica = fluxo_req_teorico / fluxo_lampada if fluxo_lampada > 0 else 0
+        qtd_real = math.ceil(qtd_teorica)
+        fluxo_instalado = qtd_real * fluxo_lampada
+        lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
+        pot_total = qtd_real * potencia_lampada
+        dpi = pot_total / area if area > 0 else 0
+        conforme = lux_real >= iluminancia_req
+
+        ratio = comprimento / largura if largura > 0 else 1
+        colunas = max(1, round(math.sqrt(qtd_real / ratio)))
+        linhas = max(1, math.ceil(qtd_real / colunas))
+        dist_c = comprimento / linhas if linhas > 0 else 0
+        dist_l = largura / colunas if colunas > 0 else 0
+
+        if modo_afastamento == "Proporcional (S/2)":
+            dist_parede_c = dist_c / 2
+            dist_parede_l = dist_l / 2
+        else:
+            dist_parede_c = afastamento_fixo_val
+            dist_parede_l = afastamento_fixo_val
+
+        maior_espacamento = max(dist_c, dist_l)
+        razao_atual = maior_espacamento / hu if hu > 0 else 0
+        espacamento_ok = razao_atual <= razao_max_input
+
+        # Exibir métricas da aba
+        st.markdown("---")
+        st.markdown(f"**Resultados Analíticos para: {novo_nome}**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Área", f"{area:.2f} m²")
+        c2.metric("Índice K", f"{k_indice:.2f}")
+        c3.metric("Luminárias", f"{qtd_real} un")
+        c4.metric("Iluminância", f"{lux_real:.2f} lx")
+
+        if conforme:
+            st.success(f"✅ Conforme NBR ISO/CIE 8995-1 ({lux_real:.2f} lx alcançados).")
+        else:
+            st.warning(f"⚠️ Abaixo da meta de {iluminancia_req} lx.")
+
+        # Armazenar dados para o relatório final consolidado
+        lista_calculos_ambientes.append({
+            "nome": novo_nome, "comp": comprimento, "larg": largura,
+            "pe_direito": pe_direito, "hp": hp, "hp_desc": hp_desc,
+            "area": area, "hu": hu, "lux_req": iluminancia_req,
+            "fluxo": fluxo_lampada, "potencia": potencia_lampada,
+            "k_indice": k_indice, "fator_u": fator_u, "fator_d": fator_d,
+            "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
+            "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado,
+            "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi,
+            "conforme": conforme, "linhas": linhas, "colunas": colunas,
+            "dist_c": dist_c, "dist_parede_c": dist_parede_c,
+            "dist_l": dist_l, "dist_parede_l": dist_parede_l,
+            "modo_afastamento": modo_afastamento, "afastamento_fixo": afastamento_fixo_val,
+            "razao_max": razao_max_input, "razao_atual": razao_atual, "espacamento_ok": espacamento_ok,
+            "usar_pro": is_pro, "fita_comprimento": fita_comprimento, "fita_pot_metro": fita_pot_metro,
+            "fita_tensao": fita_tensao, "fita_pot_total": fita_pot_total, "fita_fonte_rec": fita_fonte_rec,
+            "spot_angulo": spot_angulo, "spot_diametro": spot_diametro
+        })
+
+st.markdown("---")
+st.subheader("📥 Emissão do Relatório Consolidado")
+
+dados_cliente = {"nome": cli_nome}
+dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
+
+if is_pro:
+    docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_file=logo_upload)
+    st.download_button(
+        label="📝 Baixar Relatório Técnico Consolidado em Word (.DOCX)",
+        data=docx_bytes,
+        file_name="Relatorio_Luminotecnico_Consolidado.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True
+    )
+else:
+    # Se for plano básico, gera apenas o arquivo do primeiro ambiente selecionado
+    if len(lista_calculos_ambientes) > 0:
+        docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, [lista_calculos_ambientes[0]], logo_file=logo_upload)
         st.download_button(
-            label="📝 Baixar Relatório Técnico PRO em Word (.DOCX)",
-            data=docx_data,
-            file_name=f"Relatorio_Pro_{nome_sanitizado}.docx",
+            label="📝 Baixar Relatório Técnico em Word (.DOCX)",
+            data=docx_bytes,
+            file_name="Relatorio_Luminotecnico.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
-    else:
-        st.warning("🔒 **Exportação Bloqueada:** Apenas assinantes do **Plano PRO** podem baixar o relatório completo com parecer técnico e disclaimer jurídico.")
-
-with tab2:
-    st.subheader("📋 Gerenciamento e Lote em Massa")
-    if is_pro:
-        st.write("Processamento em lote habilitado para o Plano PRO.")
-        data_inicial = pd.DataFrame([
-            {"Ambiente": "Living", "Comprimento (m)": 6.0, "Largura (m)": 4.0, "Pé-Direito (m)": 2.9, "Meta Lux": 150, "Fluxo Lâmpada (lm)": 2000, "Potência (W)": 20, "Fator u": 0.5, "Fator d": 0.8},
-            {"Ambiente": "Cozinha Gourmet", "Comprimento (m)": 4.5, "Largura (m)": 3.5, "Pé-Direito (m)": 2.9, "Meta Lux": 300, "Fluxo Lâmpada (lm)": 2400, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
-        ])
-        df_editado = st.data_editor(data_inicial, num_rows="dynamic", use_container_width=True)
-        cli_nome_lote = st.text_input("Cliente / Empreendimento (Lote)", "Residência Completa")
-
-        if st.button("🚀 Processar e Gerar Relatório em Lote PRO", type="primary"):
-            lista_ambientes = []
-            hp_padrao = 0.75
-
-            for _, row in df_editado.iterrows():
-                comp = float(row["Comprimento (m)"])
-                larg = float(row["Largura (m)"])
-                pe_dir = float(row["Pé-Direito (m)"])
-                meta_lux = float(row["Meta Lux"])
-                fluxo = float(row["Fluxo Lâmpada (lm)"])
-                pot = float(row["Potência (W)"])
-                u = float(row["Fator u"])
-                d = float(row["Fator d"])
-
-                area = comp * larg
-                hu = max(pe_dir - hp_padrao, 0.1)
-                k = (comp * larg) / (hu * (comp + larg))
-                
-                fluxo_req = (meta_lux * area) / (u * d)
-                qtd_tec = fluxo_req / fluxo if fluxo > 0 else 0
-                qtd_real = math.ceil(qtd_tec)
-                
-                fluxo_inst = qtd_real * fluxo
-                lux_real = (fluxo_inst * u * d) / area if area > 0 else 0
-                pot_tot = qtd_real * pot
-                dpi = pot_tot / area if area > 0 else 0
-                conforme = lux_real >= meta_lux
-
-                ratio = comp / larg if larg > 0 else 1
-                colunas = max(1, round(math.sqrt(qtd_real / ratio)))
-                linhas = max(1, math.ceil(qtd_real / colunas))
-                dist_c = comp / linhas if linhas > 0 else 0
-                dist_l = larg / colunas if colunas > 0 else 0
-
-                lista_ambientes.append({
-                    "nome": row["Ambiente"], "comp": comp, "larg": larg,
-                    "pe_direito": pe_dir, "hp": hp_padrao, "hp_desc": 0.0,
-                    "area": area, "hu": hu, "lux_req": meta_lux,
-                    "fluxo": fluxo, "potencia": pot,
-                    "k_indice": k, "fator_u": u, "fator_d": d,
-                    "fluxo_req": fluxo_req, "qtd_teorica": qtd_tec,
-                    "qtd_real": qtd_real, "fluxo_instalado": fluxo_inst,
-                    "lux_real": lux_real, "pot_total": pot_tot, "dpi": dpi,
-                    "conforme": conforme, "linhas": linhas, "colunas": colunas,
-                    "dist_c": dist_c, "dist_parede_c": dist_c / 2,
-                    "dist_l": dist_l, "dist_parede_l": dist_l / 2,
-                    "modo_afastamento": "Proporcional (S/2)", "afastamento_fixo": 0.50,
-                    "razao_max": 1.25, "razao_atual": max(dist_c, dist_l)/hu, "espacamento_ok": True,
-                    "usar_pro": True, "fita_comprimento": 5.0, "fita_pot_metro": 14.4,
-                    "fita_tensao": "12V", "fita_pot_total": 72.0, "fita_fonte_rec": 86.4,
-                    "spot_angulo": 38, "spot_diametro": 1.5
-                })
-
-            docx_lote_bytes = gerar_docx_lote({"nome": cli_nome_lote}, {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}, lista_ambientes, logo_file=logo_upload)
-            st.success("✅ Relatório em lote gerado com sucesso!")
-            st.download_button(
-                label="📥 Baixar Relatório em Lote Completo (.DOCX)",
-                data=docx_lote_bytes,
-                file_name="Relatorio_Lote_PRO.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True
-            )
-    else:
-        st.warning("🔒 **Módulo em Lote Restrito:** Faça upgrade para o **Plano PRO** na barra lateral para processar múltiplos ambientes simultaneamente.")
+    st.info("🔒 Assine o **Plano PRO** para consolidar múltiplos ambientes em um único arquivo de relatório.")
