@@ -70,7 +70,7 @@ class PDF(FPDF):
 # --- FUNÇÃO DE GERAÇÃO DE PDF (SEM VAZAMENTO DE 'NONE') ---
 def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     pdf = PDF()
-    pdf.add_page()
+    _ = pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
     # Logo
@@ -82,7 +82,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
                 tmp_file.write(logo_file.read())
                 tmp_path = tmp_file.name
             try:
-                pdf.image(tmp_path, x=10, y=10, w=25)
+                _ = pdf.image(tmp_path, x=10, y=10, w=25)
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
@@ -92,22 +92,22 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 
     # Título do Relatório
     pdf.set_font("Helvetica", "B", 13)
-    pdf.cell(0, 7, pdf.sanitize("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO"), align="C")
+    _ = pdf.cell(0, 7, pdf.sanitize("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO"), align="C")
     pdf.ln(7)
     
     pdf.set_font("Helvetica", "I", 9.5)
-    pdf.cell(0, 5, pdf.sanitize("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens"), align="C")
+    _ = pdf.cell(0, 5, pdf.sanitize("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens"), align="C")
     pdf.ln(5)
 
     pdf.set_font("Helvetica", "", 8.5)
-    pdf.cell(0, 4.5, pdf.sanitize(f"Engenheiro Responsável: {dados_prof['nome']} - {dados_prof['registro']}"), align="C")
+    _ = pdf.cell(0, 4.5, pdf.sanitize(f"Engenheiro Responsável: {dados_prof['nome']} - {dados_prof['registro']}"), align="C")
     pdf.ln(4.5)
-    pdf.cell(0, 4.5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), align="C")
+    _ = pdf.cell(0, 4.5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), align="C")
     pdf.ln(8)
 
     def criar_tabela_pdf(titulo, colunas, largura_cols, dados):
         pdf.set_font("Helvetica", "B", 10.5)
-        pdf.cell(0, 6, pdf.sanitize(titulo))
+        _ = pdf.cell(0, 6, pdf.sanitize(titulo))
         pdf.ln(6)
         
         pdf.set_font("Helvetica", "B", 8.5)
@@ -115,7 +115,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
         pdf.set_text_color(255, 255, 255)
         
         for idx, col in enumerate(colunas):
-            pdf.cell(largura_cols[idx], 6, pdf.sanitize(col), border=1, align="C", fill=True)
+            _ = pdf.cell(largura_cols[idx], 6, pdf.sanitize(col), border=1, align="C", fill=True)
         pdf.ln(6)
         
         pdf.set_text_color(0, 0, 0)
@@ -125,7 +125,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
             pdf.set_fill_color(242, 242, 242) if fill else pdf.set_fill_color(255, 255, 255)
             for c_idx, val in enumerate(linha):
                 align = "C" if c_idx in [1, 2] else "L"
-                pdf.cell(largura_cols[c_idx], 5.2, pdf.sanitize(str(val)), border=1, align=align, fill=fill)
+                _ = pdf.cell(largura_cols[c_idx], 5.2, pdf.sanitize(str(val)), border=1, align=align, fill=fill)
             pdf.ln(5.2)
         pdf.ln(4)
 
@@ -189,7 +189,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 
     # 5. Parecer Técnico
     pdf.set_font("Helvetica", "B", 10.5)
-    pdf.cell(0, 6, pdf.sanitize("5. Parecer Técnico e Conformidade"))
+    _ = pdf.cell(0, 6, pdf.sanitize("5. Parecer Técnico e Conformidade"))
     pdf.ln(6)
     
     pdf.set_font("Helvetica", "", 8.5)
@@ -197,13 +197,13 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     
     w_page = pdf.w - pdf.l_margin - pdf.r_margin
 
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
     pdf.set_font("Helvetica", "B", 8.5)
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
 
-    # Gravação direta em buffer BytesIO (Evita vazamento de None no Streamlit)
+    # Gravação do buffer
     pdf_buffer = io.BytesIO()
     output_res = pdf.output()
     if isinstance(output_res, str):
@@ -481,16 +481,12 @@ with tab1:
     dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
-    # GERAR OS BUFFERS ANTES DOS BOTÕES
-    pdf_data = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
-    docx_data = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
-
     col_dl1, col_dl2 = st.columns(2)
     
     with col_dl1:
         st.download_button(
             label="📄 Baixar Relatório em PDF",
-            data=pdf_data,
+            data=gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload),
             file_name=f"Relatorio_Luminotecnico_{nome_sanitizado}.pdf",
             mime="application/pdf",
             use_container_width=True
@@ -499,7 +495,7 @@ with tab1:
     with col_dl2:
         st.download_button(
             label="📝 Baixar Relatório em Word (.DOCX)",
-            data=docx_data,
+            data=gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload),
             file_name=f"Relatorio_Luminotecnico_{nome_sanitizado}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
