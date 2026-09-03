@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import datetime
+import random
 import io
 import pandas as pd
 import docx
@@ -29,7 +30,8 @@ def inicializar_db_usuarios():
             email TEXT PRIMARY KEY,
             senha_hash TEXT NOT NULL,
             nome TEXT,
-            is_pro INTEGER DEFAULT 0
+            is_pro INTEGER DEFAULT 0,
+            token_recuperacao TEXT
         )
     ''')
     conn.commit()
@@ -70,10 +72,41 @@ def atualizar_status_pro(email, status_pro):
     conn.commit()
     conn.close()
 
+def gerar_token_recuperacao(email):
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome FROM usuarios WHERE email = ?", (email,))
+    res = cursor.fetchone()
+    if not res:
+        conn.close()
+        return None, "E-mail não encontrado no sistema."
+    
+    token = str(random.randint(100000, 999999))
+    cursor.execute("UPDATE usuarios SET token_recuperacao = ? WHERE email = ?", (token, email))
+    conn.commit()
+    conn.close()
+    return token, "Token gerado com sucesso."
+
+def redefinir_senha_com_token(email, token_informado, nova_senha):
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute("SELECT token_recuperacao FROM usuarios WHERE email = ?", (email,))
+    res = cursor.fetchone()
+    
+    if not res or res[0] != token_informado:
+        conn.close()
+        return False, "Token inválido ou incorreto."
+    
+    nova_hash = hash_senha(nova_senha)
+    cursor.execute("UPDATE usuarios SET senha_hash = ?, token_recuperacao = NULL WHERE email = ?", (nova_hash, email))
+    conn.commit()
+    conn.close()
+    return True, "Senha redefinida com sucesso!"
+
 # --- FUNÇÃO PARA GERAR PREFERÊNCIA DE PAGAMENTO NO MERCADO PAGO ---
 def criar_link_pagamento_mp(email_usuario):
     try:
-        url_retorno = "https://calculo-luminotecnico.streamlit.app"  # Ajuste conforme seu link do Streamlit Cloud
+        url_retorno = "https://calculo-luminotecnico.streamlit.app"
         
         preference_data = {
             "items": [
@@ -354,11 +387,14 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- BARRA LATERAL: AUTENTICAÇÃO E PLANOS ---
+# --- BARRA LATERAL: AUTENTICAÇÃO E PLANOS COM ILUSTRAÇÕES ---
 st.sidebar.header("🔐 Portal do Cliente")
 
 if not st.session_state["autenticado"]:
-    aba_login, aba_cadastro = st.sidebar.tabs(["Entrar", "Criar Conta"])
+    # Imagens ilustrativas na barra lateral para embelezar o login
+    st.sidebar.image("https://images.unsplash.com/photo-1540932239986-30128078f3c5?auto=format&fit=crop&w=600&q=80", caption="Projetos Luminotécnicos & Arquitetura")
+    
+    aba_login, aba_cadastro, aba_recuperar = st.sidebar.tabs(["Entrar", "Criar Conta", "Recuperar"])
     
     with aba_login:
         st.subheader("Acessar Sistema")
@@ -390,6 +426,40 @@ if not st.session_state["autenticado"]:
                     st.error(msg)
             else:
                 st.warning("Preencha todos os campos.")
+
+    with aba_recuperar:
+        st.subheader("Recuperar Senha")
+        email_rec = st.text_input("Digite seu e-mail cadastrado", key="email_rec")
+        
+        if "token_gerado_temp" not in st.session_state:
+            st.session_state["token_gerado_temp"] = ""
+            
+        if st.button("Gerar Código de Recuperação", use_container_width=True, key="btn_gerar_token"):
+            if email_rec:
+                tk, msg_tk = gerar_token_recuperacao(email_rec)
+                if tk:
+                    st.session_state["token_gerado_temp"] = tk
+                    st.session_state["email_alvo_rec"] = email_rec
+                    st.success(f"Código gerado! Anote seu código: **{tk}**")
+                else:
+                    st.error(msg_tk)
+            else:
+                st.warning("Informe o e-mail.")
+                
+        if st.session_state["token_gerado_temp"]:
+            st.markdown("---")
+            token_digitado = st.text_input("Digite o Código de 6 Dígitos", key="tk_digitado")
+            nova_senha_rec = st.text_input("Nova Senha", type="password", key=" nova_s_rec")
+            if st.button("Redefinir Senha", use_container_width=True, key="btn_confirmar_nova_senha"):
+                if token_digitado and nova_senha_rec:
+                    ok_red, msg_red = redefinir_senha_com_token(st.session_state["email_alvo_rec"], token_digitado, nova_senha_rec)
+                    if ok_red:
+                        st.success(msg_red + " Faça login na aba 'Entrar'.")
+                        st.session_state["token_gerado_temp"] = ""
+                    else:
+                        st.error(msg_red)
+                else:
+                    st.warning("Preencha todos os campos para redefinir.")
                 
     st.stop()
 
