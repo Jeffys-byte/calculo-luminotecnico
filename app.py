@@ -26,22 +26,30 @@ sdk = mercadopago.SDK(ACCESS_TOKEN_MP)
 
 # --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
 def inicializar_db_usuarios():
-    # Se o banco estiver corrompido, remove para recriar do zero com segurança
+    # FORÇA A RECUPERAÇÃO DO BANCO: Se o arquivo existir, verifica integridade.
+    # Se estiver corrompido ou travar, remove e recria para evitar o OperationalError.
     if os.path.exists(ARQUIVO_DB_USUARIOS):
         try:
-            test_conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
-            test_conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            # Tenta abrir o banco apenas para leitura para verificar se está acessível
+            test_conn = sqlite3.connect(f"file:{ARQUIVO_DB_USUARIOS}?mode=ro", uri=True)
+            test_conn.execute("PRAGMA integrity_check;")
             test_conn.close()
-        except Exception:
+        except sqlite3.OperationalError:
+            # Banco corrompido ou travado, remove o arquivo
             try:
                 os.remove(ARQUIVO_DB_USUARIOS)
+            except PermissionError:
+                # Se o arquivo estiver em uso e não puder ser removido,
+                # tentaremos sobrescrevê-lo na conexão abaixo.
+                pass
             except Exception:
                 pass
 
+    # Conecta e garante a estrutura correta
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     
-    # Cria tabela de usuários
+    # Cria tabela de usuários se não existir
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             email TEXT PRIMARY KEY,
@@ -54,7 +62,7 @@ def inicializar_db_usuarios():
         )
     ''')
     
-    # Cria tabela de luminárias com todas as colunas necessárias de início
+    # Cria tabela de luminárias se não existir com as colunas novas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS luminarias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +77,7 @@ def inicializar_db_usuarios():
     
     conn.commit()
     
-    # Função segura para garantir colunas em bancos existentes
+    # Garante colunas de migração caso o CREATE TABLE IF NOT EXISTS não as tenha pego
     def garantir_coluna(tabela, coluna, definicao):
         try:
             cursor.execute(f"PRAGMA table_info({tabela})")
@@ -96,6 +104,7 @@ def inicializar_db_usuarios():
         
     conn.close()
 
+# Executa a inicialização forçada/segura
 inicializar_db_usuarios()
 
 def hash_senha(senha):
@@ -309,392 +318,4 @@ def format_table_header(row, col_widths=None):
 def format_table_rows(table, col_widths=None):
     for r_idx, row in enumerate(table.rows[1:]):
         bg_color = "F2F2F2" if r_idx % 2 == 1 else "FFFFFF"
-        for c_idx, cell in enumerate(row.cells):
-            set_cell_background(cell, bg_color)
-            set_cell_margins(cell, top=80, bottom=80, left=120, right=120)
-            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            for p in cell.paragraphs:
-                p.paragraph_format.space_before = Pt(0)
-                p.paragraph_format.space_after = Pt(0)
-                p.paragraph_format.line_spacing = 1.15
-                for run in p.runs:
-                    run.font.size = Pt(9.5)
-            if col_widths and c_idx < len(col_widths):
-                cell.width = col_widths[c_idx]
-
-def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
-    data_emissao = datetime.datetime.now().strftime("%d/%m/%Y")
-    p_titulo = doc.add_paragraph()
-    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_titulo.paragraph_format.space_before = Pt(12)
-    p_titulo.paragraph_format.space_after = Pt(2)
-    run1 = p_titulo.add_run(f"RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO\nAMBIENTE: {d['nome'].upper()}")
-    run1.bold = True
-    run1.font.size = Pt(13)
-    run1.font.color.rgb = RGBColor(31, 78, 121)
-
-    p_sub = doc.add_paragraph()
-    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_sub.paragraph_format.space_after = Pt(4)
-    run_sub = p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente['nome']} | Método dos Lúmens")
-    run_sub.font.size = Pt(10)
-    run_sub.italic = True
-    run_sub.font.color.rgb = RGBColor(89, 89, 89)
-
-    p_info = doc.add_paragraph()
-    p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} ({dados_prof['titulo']}) — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
-    p_info.runs[0].bold = True
-    run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
-    run_norma.italic = True
-
-    def adicionar_secao_tabela(titulo, headers, col_widths, linhas):
-        doc.add_heading(titulo, level=2)
-        tbl = doc.add_table(rows=1, cols=len(headers))
-        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        hdr_cells = tbl.rows[0].cells
-        for idx, h_text in enumerate(headers):
-            hdr_cells[idx].text = h_text
-        format_table_header(tbl.rows[0], col_widths)
-        for r_data in linhas:
-            row_cells = tbl.add_row().cells
-            for c_idx, val in enumerate(r_data):
-                row_cells[c_idx].text = str(val)
-                if c_idx in [1, 2]:
-                    row_cells[c_idx].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        format_table_rows(tbl, col_widths)
-        doc.add_paragraph().paragraph_format.space_after = Pt(6)
-
-    fluxo_fmt = f"{int(d['fluxo']):,}".replace(",", ".")
-    fluxo_inst_fmt = f"{int(d['fluxo_instalado']):,}".replace(",", ".")
-
-    adicionar_secao_tabela("1. Identificação e Dados Geométricos", ["Parâmetro", "Símbolo", "Valor", "Unidade"], [Inches(3.0), Inches(0.8), Inches(1.2), Inches(1.5)], [
-        ["Nome do Ambiente", "—", d['nome'], "—"],
-        ["Comprimento", "C", f"{d['comp']:.2f}", "m"],
-        ["Largura", "L", f"{d['larg']:.2f}", "m"],
-        ["Pé-Direito Total", "H", f"{d['pe_direito']:.2f}", "m"],
-        ["Plano de Trabalho", "hp", f"{d['hp']:.2f}", "m"],
-        ["Área Total", "A", f"{d['area']:.2f}", "m²"],
-        ["Altura Útil", "hu", f"{d['hu']:.2f}", "m"]
-    ])
-    adicionar_secao_tabela("2. Parâmetros Luminotécnicos", ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Norma"], [Inches(2.5), Inches(0.8), Inches(1.2), Inches(2.0)], [
-        ["Iluminância Requerida", "Ereq", f"{d['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"],
-        ["Fluxo da Luminária", "Φlâmpada", f"{fluxo_fmt} lm", d.get('modelo_lum', 'Manual')],
-        ["Potência Unitária", "Punit", f"{d['potencia']:.1f} W", "Consumo (W)"],
-        ["Fator de Utilização", "u", f"{d['fator_u']:.2f}", d['desc_utilizacao']],
-        ["Fator de Depreciação", "d", f"{d['fator_d']:.2f}", d['desc_depreciacao']]
-    ])
-    adicionar_secao_tabela("3. Resultados do Dimensionamento", ["Item de Cálculo", "Valor Calculado", "Valor Adotado", "Unidade"], [Inches(3.0), Inches(1.2), Inches(1.3), Inches(1.0)], [
-        ["Fluxo Requerido", f"{d['fluxo_req']:.2f}", "—", "lm"],
-        ["Qtd. de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "un"],
-        ["Iluminância Real", "—", f"{d['lux_real']:.2f}", "lx"],
-        ["Potência Total", "—", f"{d['pot_total']:.2f}", "W"],
-        ["DPI", "—", f"{d['dpi']:.2f}", "W/m²"]
-    ])
-    
-    doc.add_heading("4. Parecer Técnico", level=2)
-    p1 = doc.add_paragraph()
-    p1.add_run("• Status Final: ").bold = True
-    run_status = p1.add_run("CONFORME (Aprovado)." if d['conforme'] else "NÃO CONFORME.")
-    run_status.bold = True
-    run_status.font.color.rgb = RGBColor(38, 128, 0) if d['conforme'] else RGBColor(200, 0, 0)
-
-def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=None):
-    doc = docx.Document()
-    for section in doc.sections:
-        section.top_margin = section.bottom_margin = section.left_margin = section.right_margin = Inches(0.8)
-    if logo_file is not None:
-        p_logo = doc.add_paragraph()
-        p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        logo_file.seek(0)
-        p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
-        doc.add_paragraph()
-    for idx, d in enumerate(lista_dados_ambientes):
-        adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
-        if idx < len(lista_dados_ambientes) - 1:
-            doc.add_page_break()
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
-
-# --- APLICAÇÃO DE IMAGEM DE FUNDO NA TELA DE LOGIN ---
-if not st.session_state["autenticado"]:
-    url_imagem_fundo = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1600&auto=format&fit=crop"
-    st.markdown(f"""
-    <style>
-    .stMain {{
-        background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url("{url_imagem_fundo}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- BARRA LATERAL: AUTENTICAÇÃO E LOGIN ---
-st.sidebar.header("🔐 Portal do Cliente")
-
-if not st.session_state["autenticado"]:
-    st.sidebar.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220" width="100%" height="110">
-        <path fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" d="M 195 105 C 180 90 175 70 175 55 C 175 30 195 15 225 15 C 255 15 275 30 275 55 C 275 70 270 90 255 105 Z M 210 105 L 240 105 M 215 117 L 235 117 M 219 129 L 231 129" />
-      </svg>
-    </div>
-    """, unsafe_allow_html=True)
-
-    aba_login, aba_cadastro, aba_recuperar = st.sidebar.tabs(["Entrar", "Criar Conta", "Recuperar"])
-    
-    with aba_login:
-        st.subheader("Acessar Sistema")
-        email_login = st.text_input("E-mail", key="email_l")
-        senha_login = st.text_input("Senha", type="password", key="senha_l")
-        if st.button("Entrar", use_container_width=True):
-            sucesso, nome_cad, status_pro_db, status_admin_db, token_sessao_nova = verificar_login(email_login, senha_login)
-            if sucesso:
-                st.session_state["autenticado"] = True
-                st.session_state["usuario_email"] = email_login.strip().lower()
-                st.session_state["usuario_nome"] = nome_cad
-                st.session_state["is_pro"] = status_pro_db
-                st.session_state["is_admin"] = status_admin_db
-                st.session_state["token_sessao"] = token_sessao_nova
-                st.success("Login efetuado com sucesso!")
-                st.rerun()
-            else:
-                st.error("E-mail ou senha incorretos.")
-                
-    with aba_cadastro:
-        st.subheader("Novo Cadastro")
-        nome_cad_input = st.text_input("Nome Completo", key="nome_c")
-        email_cad_input = st.text_input("E-mail", key="email_c")
-        senha_cad_input = st.text_input("Senha", type="password", key="senha_c")
-        if st.button("Cadastrar", use_container_width=True):
-            if nome_cad_input and email_cad_input and senha_cad_input:
-                ok, msg = cadastrar_usuario(email_cad_input, senha_cad_input, nome_cad_input)
-                if ok:
-                    st.success(msg + " Faça login na aba 'Entrar'.")
-                else:
-                    st.error(msg)
-            else:
-                st.warning("Preencha todos os campos.")
-
-    with aba_recuperar:
-        st.subheader("Recuperar Senha")
-        email_rec = st.text_input("Seu e-mail cadastrado", key="email_rec")
-        if "token_gerado_temp" not in st.session_state:
-            st.session_state["token_gerado_temp"] = ""
-        if st.button("Gerar Código", use_container_width=True):
-            if email_rec:
-                tk, msg_tk = gerar_token_recuperacao(email_rec)
-                if tk:
-                    st.session_state["token_gerado_temp"] = tk
-                    st.session_state["email_alvo_rec"] = email_rec
-                    st.success(f"Código: **{tk}**")
-                else:
-                    st.error(msg_tk)
-            else:
-                st.warning("Informe o e-mail.")
-        if st.session_state["token_gerado_temp"]:
-            token_digitado = st.text_input("Código de 6 Dígitos", key="tk_dig")
-            nova_senha_rec = st.text_input("Nova Senha", type="password", key="ns_rec")
-            if st.button("Redefinir", use_container_width=True):
-                ok_red, msg_red = redefinir_senha_com_token(st.session_state["email_alvo_rec"], token_digitado, nova_senha_rec)
-                if ok_red:
-                    st.success(msg_red)
-                    st.session_state["token_gerado_temp"] = ""
-                else:
-                    st.error(msg_red)
-                    
-    st.markdown("""
-    <div style="text-align: center; color: white; padding: 20px;">
-        <h1 style="font-size: 2.2rem;">⚡ Sistema Luminotécnico</h1>
-        <p>Faça login na barra lateral para acessar o painel completo de cálculos e laudos seguros.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.stop()
-
-st.sidebar.success(f"Olá, **{st.session_state['usuario_nome']}**!")
-plano_atual_str = "👑 ADMINISTRADOR (Dono)" if st.session_state["is_admin"] else ("🚀 PRO" if st.session_state["is_pro"] else "📌 Básico")
-st.sidebar.info(f"Perfil: **{plano_atual_str}**")
-
-if not st.session_state["is_admin"] and not st.session_state["is_pro"]:
-    if st.sidebar.button("💎 Pagar R$ 49,90 via Mercado Pago", use_container_width=True):
-        link_mp = criar_link_pagamento_mp(st.session_state["usuario_email"])
-        if link_mp:
-            st.sidebar.markdown(f"🔗 [Abrir Checkout]({link_mp})", unsafe_allow_html=True)
-
-if st.sidebar.button("🚪 Sair da Conta", use_container_width=True):
-    st.session_state["autenticado"] = False
-    st.rerun()
-
-# --- PAINEL DO DONO (ADMIN) EXCLUSIVO ---
-if st.session_state["is_admin"]:
-    with st.expander("👑 Painel de Controle do Dono (Administrador)", expanded=False):
-        st.write("Gerenciamento geral de usuários cadastrados no banco de dados.")
-        conn_adm = sqlite3.connect(ARQUIVO_DB_USUARIOS)
-        df_usuarios = pd.read_sql("SELECT email, nome, is_pro, is_admin FROM usuarios", conn_adm)
-        conn_adm.close()
-        st.dataframe(df_usuarios, use_container_width=True)
-        
-        email_alvo_pro = st.text_input("E-mail do usuário para alterar status PRO", placeholder="usuario@email.com")
-        col_adm1, col_adm2 = st.columns(2)
-        with col_adm1:
-            if st.button("Conceder PRO Manualmente"):
-                if email_alvo_pro:
-                    atualizar_status_pro(email_alvo_pro.strip().lower(), True)
-                    st.success(f"Usuário {email_alvo_pro} agora é PRO!")
-                    st.rerun()
-        with col_adm2:
-            if st.button("Remover PRO"):
-                if email_alvo_pro:
-                    atualizar_status_pro(email_alvo_pro.strip().lower(), False)
-                    st.warning(f"Status PRO removido de {email_alvo_pro}.")
-                    st.rerun()
-
-st.title("⚡ Sistema Luminotécnico Profissional")
-st.write("Ambiente seguro com dados isolados e proteção de relatórios por usuário.")
-
-st.sidebar.markdown("---")
-st.sidebar.header("🎨 Personalização")
-logo_upload = st.sidebar.file_uploader("Sua Logo", type=["png", "jpg", "jpeg"])
-
-st.sidebar.markdown("---")
-st.sidebar.header("👨‍💻 Responsável Técnico")
-titulo_prof = st.sidebar.selectbox("Categoria", ["Engenheiro(a) Eletricista", "Arquiteto(a) e Urbanista", "Engenheiro(a) Civil"])
-prof_nome = st.sidebar.text_input("Nome do Profissional", "")
-prof_registro = st.sidebar.text_input("Registro (CREA / CAU)", "")
-
-TABELA_NORMA = {
-    "Dormitórios / Suítes": 200,
-    "Salas de Estar / Jantar": 150,
-    "Cozinhas / Banheiros": 300,
-    "Escritórios - Trabalho": 500,
-    "Corredores e Circulação": 100,
-}
-
-# --- BANCO DE DADOS DE LUMINÁRIAS ISOLADO / COMPARTILHADO ---
-banco_luminarias_usuario = carregar_luminarias_usuario(st.session_state["usuario_email"], st.session_state["is_admin"])
-
-with st.expander("📚 Banco de Luminárias (Cadastrar / Consultar)", expanded=False):
-    st.write("Cadastre novas luminárias. Elas ficam privadas para você (ou visíveis para todos se você for o Administrador).")
-    col_cad1, col_cad2 = st.columns(2)
-    with col_cad1:
-        novo_fab = st.text_input("Fabricante", placeholder="Ex: Philips")
-        novo_mod = st.text_input("Modelo", placeholder="Ex: Painel 18W")
-    with col_cad2:
-        novo_lum = st.number_input("Fluxo (lm)", value=1500.0, step=100.0)
-        novo_pot = st.number_input("Potência (W)", value=18.0, step=1.0)
-    
-    if st.button("💾 Salvar Luminária"):
-        if novo_fab and novo_mod:
-            salvar_luminaria_banco(st.session_state["usuario_email"], novo_fab, novo_mod, novo_lum, novo_pot, global_flag=st.session_state["is_admin"])
-            st.success("Luminária salva com sucesso!")
-            st.rerun()
-        else:
-            st.warning("Preencha os campos.")
-            
-    st.markdown("##### Catálogo Disponível para sua Conta:")
-    st.dataframe(pd.DataFrame(banco_luminarias_usuario), use_container_width=True)
-
-st.markdown("---")
-st.subheader("1. Identificação Geral do Projeto")
-cli_nome = st.text_input("Cliente / Empreendimento", "", placeholder="Nome do Cliente")
-
-st.markdown("---")
-st.subheader("2. Gerenciamento de Ambientes")
-
-if "ambientes_lista" not in st.session_state:
-    st.session_state["ambientes_lista"] = [{"id": 1, "nome": "Ambiente 1"}]
-
-if st.button("➕ Adicionar Novo Ambiente"):
-    novo_id = max([a["id"] for a in st.session_state["ambientes_lista"]], default=0) + 1
-    st.session_state["ambientes_lista"].append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
-    st.rerun()
-
-lista_calculos_ambientes = []
-nomes_abas = [amb["nome"] for amb in st.session_state["ambientes_lista"]]
-tabs = st.tabs(nomes_abas)
-
-for idx, tab in enumerate(tabs):
-    amb_atual = st.session_state["ambientes_lista"][idx]
-    with tab:
-        col_cab1, col_cab2 = st.columns([3, 1])
-        with col_cab1:
-            novo_nome = st.text_input("Nome do Ambiente", amb_atual["nome"], key=f"nome_amb_{amb_atual['id']}")
-            st.session_state["ambientes_lista"][idx]["nome"] = novo_nome
-        with col_cab2:
-            if len(st.session_state["ambientes_lista"]) > 1:
-                if st.button("🗑️ Remover", key=f"del_{amb_atual['id']}"):
-                    st.session_state["ambientes_lista"].pop(idx)
-                    st.rerun()
-
-        tipo_atividade = st.selectbox("Atividade / Norma", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
-
-        opcoes_banco_str = [f"{item['Fabricante']} - {item['Modelo']} ({item['Lumens']} lm | {item['Potencia']} W)" for item in banco_luminarias_usuario]
-        opcoes_banco_str.append("⚙️ Inserir Manual")
-        escolha_banco = st.selectbox("Luminária", opcoes_banco_str, key=f"sel_banco_{amb_atual['id']}")
-        
-        if escolha_banco != "⚙️ Inserir Manual":
-            idx_escolhido = opcoes_banco_str.index(escolha_banco)
-            lum_sel = banco_luminarias_usuario[idx_escolhido]
-            fluxo_lampada, potencia_lampada = lum_sel["Lumens"], lum_sel["Potencia"]
-            modelo_desc_relatorio = f"{lum_sel['Fabricante']} - {lum_sel['Modelo']}"
-        else:
-            fluxo_lampada = st.number_input("Fluxo (lm)", value=2000.0, key=f"flux_m_{amb_atual['id']}")
-            potencia_lampada = st.number_input("Potência (W)", value=20.0, key=f"pot_m_{amb_atual['id']}")
-            modelo_desc_relatorio = "Personalizado"
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            comprimento = st.number_input("Comprimento C (m)", value=6.0, key=f"comp_{amb_atual['id']}")
-            largura = st.number_input("Largura L (m)", value=4.5, key=f"larg_{amb_atual['id']}")
-            pe_direito = st.number_input("Pé-Direito H (m)", value=2.9, key=f"ped_{amb_atual['id']}")
-            hp = st.number_input("Plano de Trabalho hp (m)", value=0.75, key=f"hp_{amb_atual['id']}")
-            hp_desc = st.number_input("Descimento hp' (m)", value=0.0, key=f"hpd_{amb_atual['id']}")
-        with col_b:
-            iluminancia_req = st.number_input("Meta (lx)", value=TABELA_NORMA[tipo_atividade], key=f"lux_{amb_atual['id']}")
-            fator_u = st.selectbox("Fator de Utilização (u)", [0.65, 0.50, 0.35], index=1, key=f"ut_{amb_atual['id']}")
-            fator_d = st.selectbox("Fator de Depreciação (d)", [0.80, 0.75, 0.70], index=1, key=f"dep_{amb_atual['id']}")
-
-        area = comprimento * largura
-        hu = max(pe_direito - hp - hp_desc, 0.1)
-        k_indice = (comprimento * largura) / (hu * (comprimento + largura))
-        fluxo_req_teorico = (iluminancia_req * area) / (fator_u * fator_d)
-        qtd_teorica = fluxo_req_teorico / fluxo_lampada if fluxo_lampada > 0 else 0
-        qtd_real = math.ceil(qtd_teorica)
-        fluxo_instalado = qtd_real * fluxo_lampada
-        lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
-        pot_total = qtd_real * potencia_lampada
-        dpi = pot_total / area if area > 0 else 0
-        conforme = lux_real >= iluminancia_req
-
-        st.markdown(f"**Resultado:** {qtd_real} luminárias | {lux_real:.2f} lx")
-
-        lista_calculos_ambientes.append({
-            "nome": novo_nome, "comp": comprimento, "larg": largura, "pe_direito": pe_direito,
-            "hp": hp, "hp_desc": hp_desc, "area": area, "hu": hu, "lux_req": iluminancia_req,
-            "fluxo": fluxo_lampada, "potencia": potencia_lampada, "modelo_lum": modelo_desc_relatorio,
-            "k_indice": k_indice, "fator_u": fator_u, "desc_utilizacao": "Padrão", "fator_d": fator_d,
-            "desc_depreciacao": "Padrão", "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
-            "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado, "lux_real": lux_real,
-            "pot_total": pot_total, "dpi": dpi, "conforme": conforme, "linhas": 1, "colunas": 1,
-            "dist_c": 1, "dist_parede_c": 1, "dist_l": 1, "dist_parede_l": 1
-        })
-
-st.markdown("---")
-st.subheader("📥 Emissão de Relatório Seguro (.docx)")
-
-if st.button("Gerar Relatório Técnico Completo", use_container_width=True):
-    dados_cliente = {"nome": cli_nome if cli_nome else "Cliente Geral"}
-    dados_prof = {"nome": prof_nome if prof_nome else st.session_state["usuario_nome"], "titulo": titulo_prof, "registro": prof_registro or "CREA 0000"}
-    arquivo_docx = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_upload)
-    
-    st.download_button(
-        label="📥 Baixar Laudo Word Seguro",
-        data=arquivo_docx,
-        file_name="Laudo_Luminotecnico.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True
-    )
+        for c_idx, cell in enumerate(row
