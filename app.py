@@ -6,7 +6,7 @@ import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Sistema de Cálculo Luminotécnico & Laudos",
+    page_title="Luminotécnica",
     page_icon="💡",
     layout="wide"
 )
@@ -17,7 +17,7 @@ def verificar_autenticacao():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnico")
+        st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnica")
         st.markdown("Por favor, faça login ou escolha um plano de acesso para continuar.")
         
         tab_login, tab_planos = st.tabs(["🔑 Fazer Login", "💳 Assinar / Planos"])
@@ -29,7 +29,6 @@ def verificar_autenticacao():
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    # Credenciais solicitadas
                     if email_input.strip() == "jefkar27@gmail.com" and senha_input.strip() == "255859":
                         st.session_state.autenticado = True
                         st.session_state.usuario_email = email_input
@@ -62,11 +61,10 @@ def verificar_autenticacao():
         return False
     return True
 
-# Executa a verificação de login antes de renderizar o app
 if not verificar_autenticacao():
     st.stop()
 
-# --- TABELA DE NORMAS (NBR 5413 / ISO 8995) ---
+# --- TABELA DE NORMAS (NBR ISO/CIE 8995-1 / NBR 5410) ---
 TABELA_NORMA = {
     "Escritórios - Geral / Digitação": 500,
     "Escritórios - Reunião / Conferência": 300,
@@ -83,7 +81,7 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- FUNÇÃO DE GERAÇÃO DO WORD (DOCX) PROFISSIONAL ---
+# --- FUNÇÃO DE GERAÇÃO DO WORD (DOCX) NO FORMATO EXATO SOLICITADO ---
 def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -94,17 +92,15 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
     doc = Document()
     
-    # Margens da página
     for section in doc.sections:
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
 
-    # Estilo base
     style_normal = doc.styles['Normal']
     style_normal.font.name = 'Arial'
-    style_normal.font.size = Pt(10)
+    style_normal.font.size = Pt(9.5)
     style_normal.font.color.rgb = RGBColor(50, 50, 50)
 
     HEX_COR_PRIMARIA = "1A365D"    # Azul Marinho Escuro
@@ -115,172 +111,198 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         shading_xml = f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>'
         cell._tc.get_or_add_tcPr().append(parse_xml(shading_xml))
 
-    def set_cell_margins(cell, top=120, bottom=120, left=150, right=150):
+    def set_cell_margins(cell, top=100, bottom=100, left=120, right=120):
         tcPr = cell._tc.get_or_add_tcPr()
         tcMar = parse_xml(f'<w:tcMar {nsdecls("w")}><w:top w:w="{top}" w:type="dxa"/><w:bottom w:w="{bottom}" w:type="dxa"/><w:left w:w="{left}" w:type="dxa"/><w:right w:w="{right}" w:type="dxa"/></w:tcMar>')
         tcPr.append(tcMar)
 
-    # Cabeçalho / Logo se houver
     if logo_file:
         try:
-            doc.add_picture(logo_file, width=Inches(1.8))
+            doc.add_picture(logo_file, width=Inches(1.5))
             doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.RIGHT
         except Exception:
             pass
 
-    # Capa / Título Principal
-    p_titulo = doc.add_paragraph()
-    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_titulo = p_titulo.add_run("LAUDO TÉCNICO LUMINOTÉCNICO")
-    run_titulo.bold = True
-    run_titulo.font.size = Pt(18)
-    run_titulo.font.color.rgb = COR_TEXTO_TITULO
-    
-    p_sub = doc.add_paragraph()
-    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_sub = p_sub.add_run("Memória de Cálculo e Projeto de Iluminação Baseado na NBR 5413 / ISO 8995")
-    run_sub.font.size = Pt(11)
-    run_sub.font.color.rgb = RGBColor(100, 100, 100)
-    
-    doc.add_paragraph()
-
-    # 1. Identificação Geral
-    h1 = doc.add_heading(level=2)
-    run_h1 = h1.add_run("1. Identificação do Projeto e Partes Envolvidas")
-    run_h1.font.color.rgb = COR_TEXTO_TITULO
-    
-    t_info = doc.add_table(rows=2, cols=2)
-    t_info.alignment = WD_TABLE_ALIGNMENT.CENTER
-    t_info.autofit = False
-
-    col_widths = [Inches(3.25), Inches(3.25)]
-    dados_tabela_info = [
-        [("Cliente:", f" {dados_cliente.get('nome', 'N/D')}"), ("E-mail do Cliente:", f" {dados_cliente.get('email', 'N/D')}")],
-        [("Profissional Responsável:", f" {dados_profissional.get('nome', 'N/D')}"), ("Registro / Contato:", f" CREA: {dados_profissional.get('registro', 'N/D')} | Cel: {dados_profissional.get('celular', 'N/D')}")]
-    ]
-
-    for row_idx, row_data in enumerate(dados_tabela_info):
-        for col_idx, (label, val) in enumerate(row_data):
-            cell = t_info.cell(row_idx, col_idx)
-            cell.width = col_widths[col_idx]
-            set_cell_background(cell, HEX_COR_SECUNDARIA if row_idx == 0 else "FFFFFF")
-            set_cell_margins(cell, top=140, bottom=140, left=150, right=150)
-            
-            p = cell.paragraphs[0]
-            p.paragraph_format.space_after = Pt(0)
-            run_lbl = p.add_run(label)
-            run_lbl.bold = True
-            run_lbl.font.size = Pt(9.5)
-            run_val = p.add_run(val)
-            run_val.font.size = Pt(9.5)
-
-    doc.add_paragraph()
-
-    # 2. Resumo Executivo Consolidado
-    h2 = doc.add_heading(level=2)
-    run_h2 = h2.add_run("2. Resumo Consolidado dos Ambientes")
-    run_h2.font.color.rgb = COR_TEXTO_TITULO
-
-    t_res = doc.add_table(rows=len(lista_ambientes) + 1, cols=6)
-    t_res.alignment = WD_TABLE_ALIGNMENT.CENTER
-    t_res.autofit = False
-
-    larguras_res = [Inches(1.5), Inches(0.8), Inches(0.9), Inches(1.1), Inches(1.1), Inches(1.1)]
-    cabecalhos_res = ["Ambiente", "Área (m²)", "Lux Req.", "Lux Real", "Qtd. Lâmp.", "Status"]
-
-    for col_idx, texto in enumerate(cabecalhos_res):
-        cell = t_res.cell(0, col_idx)
-        cell.width = larguras_res[col_idx]
-        set_cell_background(cell, HEX_COR_PRIMARIA)
-        set_cell_margins(cell, top=150, bottom=150, left=100, right=100)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(texto)
-        run.bold = True
-        run.font.color.rgb = RGBColor(255, 255, 255)
-        run.font.size = Pt(9)
+    data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
 
     for idx, amb in enumerate(lista_ambientes):
-        row_cells = t_res.rows[idx + 1].cells
-        dados_linha = [
-            amb["nome"],
-            f"{amb['area']:.2f}",
-            f"{amb['lux_req']:.0f} lx",
-            f"{amb['lux_real']:.1f} lx",
-            str(amb['qtd_real']),
-            "CONFORME" if amb['conforme'] else "NÃO CONFORME"
-        ]
-        
-        bg_cor = "F7FAFC" if idx % 2 == 0 else "FFFFFF"
-        for col_idx, texto_val in enumerate(dados_linha):
-            cell = row_cells[col_idx]
-            cell.width = larguras_res[col_idx]
-            set_cell_background(cell, bg_cor)
-            set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
-            p = cell.paragraphs[0]
-            if col_idx > 0:
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p.add_run(texto_val)
-            run.font.size = Pt(9)
-            if col_idx == 5:
-                run.bold = True
-                run.font.color.rgb = RGBColor(34, 139, 34) if amb['conforme'] else RGBColor(178, 34, 34)
+        if idx > 0:
+            doc.add_page_break()
 
-    doc.add_page_break()
+        # Título principal do ambiente
+        p_t = doc.add_paragraph()
+        r_t = p_t.add_run(f"RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO\nAMBIENTE: {amb['nome'].upper()}")
+        r_t.bold = True
+        r_t.font.size = Pt(13)
+        r_t.font.color.rgb = COR_TEXTO_TITULO
 
-    # 3. Detalhamento Técnico Completo por Ambiente
-    h3 = doc.add_heading(level=2)
-    run_h3 = h3.add_run("3. Memória de Cálculo Detalhada por Ambiente")
-    run_h3.font.color.rgb = COR_TEXTO_TITULO
-
-    for idx, amb in enumerate(lista_ambientes):
-        p_amb = doc.add_paragraph()
-        r_amb = p_amb.add_run(f"3.{idx+1}. Ambiente: {amb['nome']}")
-        r_amb.bold = True
-        r_amb.font.size = Pt(11.5)
-        r_amb.font.color.rgb = COR_TEXTO_TITULO
-
-        t_det = doc.add_table(rows=7, cols=2)
-        t_det.alignment = WD_TABLE_ALIGNMENT.CENTER
-        t_det.autofit = False
-        
-        detalhes_dados = [
-            ("Dimensões do Ambiente", f"Comprimento: {amb['comp']} m | Largura: {amb['larg']} m | Área: {amb['area']:.2f} m²"),
-            ("Geometria e Pé-Direito", f"Pé-Direito: {amb['pe_direito']} m | Plano de Trabalho (hP): {amb['hp']} m | Altura Útil (hu): {amb['hu']:.2f} m"),
-            ("Fatores Aplicados", f"Fator de Utilização (u): {amb['fator_u']} | Fator de Depreciação (d): {amb['fator_d']} | Índice K: {amb['k_indice']:.2f}"),
-            ("Luminária / Fonte", f"Modelo: {amb['modelo_lum']} | Fluxo Unitário: {amb['fluxo']} lm | Potência Unitária: {amb['potencia']} W"),
-            ("Resultados de Iluminância", f"Iluminância Requerida: {amb['lux_req']:.0f} lx | Iluminância Obtida: {amb['lux_real']:.1f} lx"),
-            ("Arranjo Físico Proposto", f"Quantidade de Luminárias: {amb['qtd_real']} unidades ({amb['linhas']} linhas x {amb['colunas']} colunas)"),
-            ("Carga e Eficiência Energética", f"Potência Total Instalada: {amb['pot_total']:.1f} W | Densidade de Potência (DPI): {amb['dpi']:.2f} W/m²")
-        ]
-
-        for r_i, (chave, valor) in enumerate(detalhes_dados):
-            c_label, c_val = t_det.cell(r_i, 0), t_det.cell(r_i, 1)
-            c_label.width, c_val.width = Inches(2.3), Inches(4.2)
-            set_cell_background(c_label, HEX_COR_SECUNDARIA)
-            set_cell_background(c_val, "FFFFFF")
-            set_cell_margins(c_label, top=90, bottom=90, left=100, right=100)
-            set_cell_margins(c_val, top=90, bottom=90, left=100, right=100)
-            
-            p0 = c_label.paragraphs[0]
-            p0.paragraph_format.space_after = Pt(0)
-            r_l = p0.add_run(chave)
-            r_l.bold = True
-            r_l.font.size = Pt(8.5)
-            
-            p1 = c_val.paragraphs[0]
-            p1.paragraph_format.space_after = Pt(0)
-            r_v = p1.add_run(valor)
-            r_v.font.size = Pt(8.5)
+        p_sub = doc.add_paragraph()
+        p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente.get('nome', 'Cliente Geral')} | Método dos Lúmens\n")
+        p_sub.add_run(f"Responsável Técnico: {dados_profissional.get('nome', 'Não informado')} — Registro: {dados_profissional.get('registro', 'Não informado')} | Data de Emissão: {data_atual_str}\n")
+        p_sub.add_run(f"Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
+        p_sub.runs[0].font.size = Pt(9)
+        p_sub.runs[1].font.size = Pt(9)
+        p_sub.runs[2].font.size = Pt(9)
 
         doc.add_paragraph()
 
-    # Bloco de Assinatura
-    p_ass = doc.add_paragraph()
-    p_ass.paragraph_format.space_before = Pt(40)
-    r_ass = p_ass.add_run(f"__________________________________________________\n{dados_profissional.get('nome', 'Profissional Responsável')}\nRegistro CREA/CAU: {dados_profissional.get('registro', 'N/D')}\nContato: {dados_profissional.get('celular', 'N/D')} | {dados_profissional.get('email', 'N/D')}")
-    r_ass.font.size = Pt(9)
-    p_ass.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # 1. Identificação e Dados Geométricos
+        h1 = doc.add_heading(level=2)
+        r_h1 = h1.add_run("1. Identificação e Dados Geométricos")
+        r_h1.font.size = Pt(11)
+        r_h1.font.color.rgb = COR_TEXTO_TITULO
+
+        t1 = doc.add_table(rows=10, cols=4)
+        t1.alignment = WD_TABLE_ALIGNMENT.CENTER
+        t1.autofit = False
+        w1 = [Inches(2.5), Inches(0.8), Inches(1.8), Inches(1.4)]
+
+        headers1 = ["Parâmetro", "Símbolo", "Valor", "Unidade"]
+        for ci, h in enumerate(headers1):
+            cell = t1.cell(0, ci)
+            cell.width = w1[ci]
+            set_cell_background(cell, HEX_COR_PRIMARIA)
+            set_cell_margins(cell)
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+            run.font.color.rgb = RGBColor(255, 255, 255)
+            run.font.size = Pt(8.5)
+
+        dados_bloco1 = [
+            ("Nome do Ambiente", "—", amb['nome'], "—"),
+            ("Comprimento", "C", f"{amb['comp']:.2f}", "m"),
+            ("Largura", "L", f"{amb['larg']:.2f}", "m"),
+            ("Pé-Direito Total", "H", f"{amb['pe_direito']:.2f}", "m"),
+            ("Plano de Trabalho", "hp", f"{amb['hp']:.2f}", "m"),
+            ("Descimento do Plano", "hp'", f"{amb['hp_desc']:.2f}", "m"),
+            ("Área Total", "A", f"{amb['area']:.2f}", "m²"),
+            ("Altura Útil", "hu", f"{amb['hu']:.2f}", "m"),
+            ("Índice do Local", "k", f"{amb['k_indice']:.2f}", "—")
+        ]
+
+        for ri, row_vals in enumerate(dados_bloco1):
+            row_cells = t1.rows[ri + 1].cells
+            bg = "F7FAFC" if ri % 2 == 0 else "FFFFFF"
+            for ci, val in enumerate(row_vals):
+                cell = row_cells[ci]
+                cell.width = w1[ci]
+                set_cell_background(cell, bg)
+                set_cell_margins(cell)
+                p = cell.paragraphs[0]
+                run = p.add_run(val)
+                run.font.size = Pt(8.5)
+
+        doc.add_paragraph()
+
+        # 2. Parâmetros Luminotécnicos
+        h2 = doc.add_heading(level=2)
+        r_h2 = h2.add_run("2. Parâmetros Luminotécnicos")
+        r_h2.font.size = Pt(11)
+        r_h2.font.color.rgb = COR_TEXTO_TITULO
+
+        t2 = doc.add_table(rows=7, cols=4)
+        t2.alignment = WD_TABLE_ALIGNMENT.CENTER
+        t2.autofit = False
+        w2 = [Inches(2.3), Inches(0.9), Inches(1.8), Inches(1.5)]
+
+        headers2 = ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Norma / Descrição"]
+        for ci, h in enumerate(headers2):
+            cell = t2.cell(0, ci)
+            cell.width = w2[ci]
+            set_cell_background(cell, HEX_COR_PRIMARIA)
+            set_cell_margins(cell)
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+            run.font.color.rgb = RGBColor(255, 255, 255)
+            run.font.size = Pt(8.5)
+
+        dados_bloco2 = [
+            ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.0f} lx", "NBR ISO/CIE 8995-1"),
+            ("Fluxo da Luminária", "Φlâmpada", f"{amb['fluxo']:,.0f} lm".replace(",", "."), amb['modelo_lum']),
+            ("Potência Unitária", "Punit", f"{amb['potencia']:.1f} W", "Consumo (W)"),
+            ("Fator de Utilização", "u", f"{amb['fator_u']:.2f}", f"{amb['fator_u']:.2f} ({amb['desc_utilizacao']})"),
+            ("Fator de Depreciação", "d", f"{amb['fator_d']:.2f}", f"{amb['fator_d']:.2f} ({amb['desc_depreciacao']})")
+        ]
+
+        for ri, row_vals in enumerate(dados_bloco2):
+            row_cells = t2.rows[ri + 1].cells
+            bg = "F7FAFC" if ri % 2 == 0 else "FFFFFF"
+            for ci, val in enumerate(row_vals):
+                cell = row_cells[ci]
+                cell.width = w2[ci]
+                set_cell_background(cell, bg)
+                set_cell_margins(cell)
+                p = cell.paragraphs[0]
+                run = p.add_run(val)
+                run.font.size = Pt(8.5)
+
+        doc.add_paragraph()
+
+        # 3. Resultados do Dimensionamento
+        h3 = doc.add_heading(level=2)
+        r_h3 = h3.add_run("3. Resultados do Dimensionamento")
+        r_h3.font.size = Pt(11)
+        r_h3.font.color.rgb = COR_TEXTO_TITULO
+
+        t3 = doc.add_table(rows=15, cols=4)
+        t3.alignment = WD_TABLE_ALIGNMENT.CENTER
+        t3.autofit = False
+        w3 = [Inches(2.8), Inches(1.3), Inches(1.4), Inches(1.0)]
+
+        headers3 = ["Item de Cálculo", "Valor Calculado", "Valor Adotado", "Unidade"]
+        for ci, h in enumerate(headers3):
+            cell = t3.cell(0, ci)
+            cell.width = w3[ci]
+            set_cell_background(cell, HEX_COR_PRIMARIA)
+            set_cell_margins(cell)
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+            run.font.color.rgb = RGBColor(255, 255, 255)
+            run.font.size = Pt(8.5)
+
+        dados_bloco3 = [
+            ("Fluxo Luminoso Necessário", f"{amb['fluxo_req']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "—", "lm"),
+            ("Fluxo Luminoso Instalado (Real)", f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), f"{amb['fluxo_instalado']:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "lm"),
+            ("Diferencial de Fluxo (Variância)", f"{amb['variacao_fluxo_pct']:+.1f}%", f"{amb['variacao_fluxo_pct']:+.1f}%", "%"),
+            ("Qtd. de Luminárias", f"{amb['qtd_teorica']:.2f}", f"{amb['qtd_real']}", "un"),
+            ("Arranjo (Linhas x Colunas)", f"{amb['linhas']} x {amb['colunas']}", f"{amb['linhas']} x {amb['colunas']}", "arr."),
+            ("Distância entre Luminárias (C)", f"{amb['dist_c_entre']:.2f}", f"{amb['dist_c_entre']:.2f}", "m"),
+            ("Distância até Parede (C)", f"{amb['dist_c_parede']:.2f}", f"{amb['dist_c_parede']:.2f}", "m"),
+            ("Distância entre Luminárias (L)", f"{amb['dist_l_entre']:.2f}", f"{amb['dist_l_entre']:.2f}", "m"),
+            ("Distância até Parede (L)", f"{amb['dist_l_parede']:.2f}", f"{amb['dist_l_parede']:.2f}", "m"),
+            ("Iluminância Real Alcançada", "—", f"{amb['lux_real']:.2f}", "lx"),
+            ("Potência Total", "—", f"{amb['pot_total']:.2f}", "W"),
+            ("Densidade de Potência (DPI)", "—", f"{amb['dpi']:.2f}", "W/m²")
+        ]
+
+        for ri, row_vals in enumerate(dados_bloco3):
+            row_cells = t3.rows[ri + 1].cells
+            bg = "F7FAFC" if ri % 2 == 0 else "FFFFFF"
+            for ci, val in enumerate(row_vals):
+                cell = row_cells[ci]
+                cell.width = w3[ci]
+                set_cell_background(cell, bg)
+                set_cell_margins(cell)
+                p = cell.paragraphs[0]
+                run = p.add_run(val)
+                run.font.size = Pt(8.5)
+
+        doc.add_paragraph()
+
+        # 4. Parecer Técnico
+        h4 = doc.add_heading(level=2)
+        r_h4 = h4.add_run("4. Parecer Técnico")
+        r_h4.font.size = Pt(11)
+        r_h4.font.color.rgb = COR_TEXTO_TITULO
+
+        p_par = doc.add_paragraph()
+        status_txt = "CONFORME (Aprovado)." if amb['conforme'] else "NÃO CONFORME (Abaixo do Requerido)."
+        r_par = p_par.add_run(f"• Status Final: {status_txt}")
+        r_par.bold = True
+        r_par.font.size = Pt(9.5)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -288,10 +310,9 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
     return buffer.getvalue()
 
 # --- INTERFACE PRINCIPAL DO APLICATIVO ---
-st.title("💡 Sistema Avançado de Cálculo Luminotécnico & Laudos")
+st.title("💡 Luminotécnica")
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')} ({st.session_state.get('plano_ativo', 'Plano Ativo')})")
 
-# Botão de Sair/Logout na Barra Lateral
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
     st.rerun()
@@ -319,7 +340,6 @@ with col_cli2:
 st.markdown("---")
 st.markdown("### 🛋️ 2. Gerenciamento de Ambientes e Lâmpadas")
 
-# Gerenciamento do Banco de Luminárias do Usuário no Session State
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
         {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0},
@@ -351,7 +371,7 @@ with st.expander("⚙️ Gerenciar / Cadastrar Novas Luminárias no Banco"):
             st.success(f"Luminária {novo_fab} - {novo_mod} adicionada com sucesso!")
 
 if "ambientes" not in st.session_state:
-    st.session_state.ambientes = [{"id": 1, "nome": "Sala de Estar Principal"}]
+    st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
 
 col_add, col_rem = st.columns([1, 1])
 with col_add:
@@ -374,7 +394,7 @@ for amb_atual in st.session_state.ambientes:
         with col_n1:
             novo_nome = st.text_input("Nome do Ambiente", value=amb_atual['nome'], key=f"nome_amb_{amb_atual['id']}")
         with col_n2:
-            tipo_atividade = st.selectbox("Atividade / Norma (NBR 5413)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
+            tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
         st.markdown("##### 💡 Fonte Luminosa")
         opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in st.session_state.banco_luminarias]
@@ -398,16 +418,37 @@ for amb_atual in st.session_state.ambientes:
         st.markdown("##### Geometria e Fatores")
         col_g1, col_g2, col_g3 = st.columns(3)
         with col_g1:
-            comp = st.number_input("Comprimento (m)", value=5.0, step=0.1, key=f"comp_{amb_atual['id']}")
-            pe_direito = st.number_input("Pé-Direito (m)", value=2.8, step=0.1, key=f"pd_{amb_atual['id']}")
+            comp = st.number_input("Comprimento (m)", value=6.0, step=0.1, key=f"comp_{amb_atual['id']}")
+            pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}")
         with col_g2:
-            larg = st.number_input("Largura (m)", value=4.0, step=0.1, key=f"larg_{amb_atual['id']}")
+            larg = st.number_input("Largura (m)", value=4.5, step=0.1, key=f"larg_{amb_atual['id']}")
             hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
         with col_g3:
             hp_desc = st.number_input("Descimento da Luminária (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
-            fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.8, 0.05, key=f"fd_{amb_atual['id']}")
 
-        fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.55, 0.05, key=f"fu_{amb_atual['id']}")
+        # Janelas com explicações detalhadas para os Fatores (Conforme solicitado)
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.50, 0.05, key=f"fu_{amb_atual['id']}")
+            with st.expander("ℹ️ O que é o Fator de Utilização (u)?"):
+                st.markdown("""
+                O **Fator de Utilização ($u$)** representa a eficiência com que o fluxo luminoso emitido pelas luminárias atinge o plano de trabalho. 
+                Ele depende diretamente de:
+                - **Geometria do ambiente** (Índice do local $k$).
+                - **Reflexão das superfícies** (paredes, teto e piso).
+                - **Distribuição fotométrica** da luminária.
+                *Valores típicos variam de 0.3 (ambientes escuros/pequenos) a 0.8 (ambientes claros e amplos).*
+                """)
+        with col_f2:
+            fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.75, 0.05, key=f"fd_{amb_atual['id']}")
+            with st.expander("ℹ️ O que é o Fator de Depreciação (d)?"):
+                st.markdown("""
+                O **Fator de Depreciação ($d$)** — também conhecido como fator de manutenção — considera a queda do fluxo luminoso ao longo do tempo devido a:
+                - Acúmulo de poeira e sujeira nas luminárias e lâmpadas.
+                - Redução natural do fluxo luminoso da fonte de luz com o envelhecimento.
+                - Sujeira nas paredes e teto do ambiente.
+                *Valores usuais: 0.80 para ambientes limpos, 0.70 a 0.75 para ambientes padrão e abaixo de 0.65 para ambientes industriais severos.*
+                """)
 
         # --- MEMÓRIA DE CÁLCULO ---
         area = comp * larg
@@ -424,6 +465,12 @@ for amb_atual in st.session_state.ambientes:
         proporcao = comp / larg if larg > 0 else 1.0
         colunas = math.ceil(math.sqrt(qtd_real * proporcao))
         linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
+
+        # Cálculo das distâncias entre luminárias e paredes
+        dist_c_entre = comp / colunas if colunas > 0 else comp
+        dist_c_parede = dist_c_entre / 2.0
+        dist_l_entre = larg / linhas if linhas > 0 else larg
+        dist_l_parede = dist_l_entre / 2.0
 
         fluxo_instalado = qtd_real * fluxo_lampada
         lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
@@ -449,12 +496,18 @@ for amb_atual in st.session_state.ambientes:
             "potencia": potencia_lampada,
             "fator_u": fator_u,
             "fator_d": fator_d,
+            "desc_utilizacao": "Ambiente médio / Padrão",
+            "desc_depreciacao": "Limpeza periódica / Padrão",
             "modelo_lum": modelo_desc_relatorio,
             "fluxo_instalado": fluxo_instalado,
             "qtd_teorica": qtd_teorica,
             "qtd_real": qtd_real,
             "linhas": linhas,
             "colunas": colunas,
+            "dist_c_entre": dist_c_entre,
+            "dist_c_parede": dist_c_parede,
+            "dist_l_entre": dist_l_entre,
+            "dist_l_parede": dist_l_parede,
             "lux_real": lux_real,
             "pot_total": pot_total,
             "dpi": dpi,
@@ -464,15 +517,15 @@ for amb_atual in st.session_state.ambientes:
         
         st.markdown("---")
 
-st.subheader("3. Emissão de Laudo Técnico Profissional (Word)")
+st.subheader("3. Emissão de Laudo Técnico Luminotécnico (Word)")
 
 if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=True):
     dados_cli_dict = {
-        "nome": cli_nome if cli_nome else "Cliente Não Informado",
+        "nome": cli_nome if cli_nome else "Cliente Geral",
         "email": cli_email if cli_email else "Não informado"
     }
     dados_prof_dict = {
-        "nome": prof_nome if prof_nome else "Profissional Não Informado",
+        "nome": prof_nome if prof_nome else "Não informado",
         "registro": prof_registro if prof_registro else "Não informado",
         "celular": prof_celular if prof_celular else "Não informado",
         "email": prof_email if prof_email else "Não informado"
@@ -490,3 +543,4 @@ if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=T
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
+    
