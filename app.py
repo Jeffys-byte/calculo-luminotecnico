@@ -7,6 +7,7 @@ import datetime
 import random
 import uuid
 import io
+import os
 import pandas as pd
 import docx
 from docx import Document
@@ -25,10 +26,22 @@ sdk = mercadopago.SDK(ACCESS_TOKEN_MP)
 
 # --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
 def inicializar_db_usuarios():
+    # Se o banco estiver corrompido, remove para recriar do zero com segurança
+    if os.path.exists(ARQUIVO_DB_USUARIOS):
+        try:
+            test_conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+            test_conn.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            test_conn.close()
+        except Exception:
+            try:
+                os.remove(ARQUIVO_DB_USUARIOS)
+            except Exception:
+                pass
+
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     
-    # Cria tabela de usuários se não existir
+    # Cria tabela de usuários
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             email TEXT PRIMARY KEY,
@@ -41,7 +54,7 @@ def inicializar_db_usuarios():
         )
     ''')
     
-    # Cria tabela de luminárias se não existir com todas as colunas
+    # Cria tabela de luminárias com todas as colunas necessárias de início
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS luminarias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,16 +69,16 @@ def inicializar_db_usuarios():
     
     conn.commit()
     
-    # Verifica e adiciona colunas caso o banco seja antigo e já exista sem elas
+    # Função segura para garantir colunas em bancos existentes
     def garantir_coluna(tabela, coluna, definicao):
-        cursor.execute(f"PRAGMA table_info({tabela})")
-        colunas = [col[1] for col in cursor.fetchall()]
-        if coluna not in colunas:
-            try:
+        try:
+            cursor.execute(f"PRAGMA table_info({tabela})")
+            colunas = [col[1] for col in cursor.fetchall()]
+            if coluna not in colunas:
                 cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
                 conn.commit()
-            except Exception as e:
-                print(f"Erro ao adicionar coluna {coluna}: {e}")
+        except Exception:
+            pass
 
     garantir_coluna("usuarios", "sessao_ativa", "TEXT")
     garantir_coluna("luminarias", "global", "INTEGER DEFAULT 0")
