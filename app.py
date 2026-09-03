@@ -34,6 +34,8 @@ def inicializar_db_usuarios():
             email TEXT PRIMARY KEY,
             senha_hash TEXT NOT NULL,
             nome TEXT,
+            celular TEXT,
+            registro TEXT,
             is_pro INTEGER DEFAULT 0,
             is_admin INTEGER DEFAULT 0,
             token_recuperacao TEXT,
@@ -66,6 +68,8 @@ def inicializar_db_usuarios():
             pass
 
     garantir_coluna("usuarios", "sessao_ativa", "TEXT")
+    garantir_coluna("usuarios", "celular", "TEXT")
+    garantir_coluna("usuarios", "registro", "TEXT")
     garantir_coluna("luminarias", "global", "INTEGER DEFAULT 0")
     garantir_coluna("luminarias", "email_usuario", "TEXT")
     
@@ -73,9 +77,9 @@ def inicializar_db_usuarios():
     if not cursor.fetchone():
         senha_dono_hash = hashlib.sha256("peb@engenharia".encode()).hexdigest()
         cursor.execute('''
-            INSERT INTO usuarios (email, senha_hash, nome, is_pro, is_admin) 
-            VALUES (?, ?, ?, 1, 1)
-        ''', (EMAIL_DONO_MESTRE, senha_dono_hash, "Jefferson Barcellos (Dono)"))
+            INSERT INTO usuarios (email, senha_hash, nome, celular, registro, is_pro, is_admin) 
+            VALUES (?, ?, ?, ?, ?, 1, 1)
+        ''', (EMAIL_DONO_MESTRE, senha_dono_hash, "Jefferson Barcellos (Dono)", "(21) 99999-9999", "CREA-RJ"))
         conn.commit()
         
     conn.close()
@@ -85,16 +89,18 @@ inicializar_db_usuarios()
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-def cadastrar_usuario(email, senha, nome):
+def cadastrar_usuario(email, senha, nome, celular, registro):
     try:
         conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
         cursor = conn.cursor()
         is_adm = 1 if email.strip().lower() == EMAIL_DONO_MESTRE.lower() else 0
-        # Novos usuários cadastrados iniciam SEM acesso PRO (is_pro = 0) e precisam assinar/pagar, exceto o dono
+        # Novos usuários entram com is_pro = 0 e precisam efetuar o pagamento
         is_pr = 1 if is_adm else 0
         
-        cursor.execute("INSERT INTO usuarios (email, senha_hash, nome, is_pro, is_admin) VALUES (?, ?, ?, ?, ?)",
-                       (email.strip().lower(), hash_senha(senha), nome, is_pr, is_adm))
+        cursor.execute("""
+            INSERT INTO usuarios (email, senha_hash, nome, celular, registro, is_pro, is_admin) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (email.strip().lower(), hash_senha(senha), nome, celular, registro, is_pr, is_adm))
         conn.commit()
         conn.close()
         return True, "Cadastro realizado com sucesso!"
@@ -105,7 +111,7 @@ def verificar_login(email, senha):
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     email_limpo = email.strip().lower()
-    cursor.execute("SELECT senha_hash, nome, is_pro, is_admin FROM usuarios WHERE email = ?", (email_limpo,))
+    cursor.execute("SELECT senha_hash, nome, celular, registro, is_pro, is_admin FROM usuarios WHERE email = ?", (email_limpo,))
     resultado = cursor.fetchone()
     
     if resultado and resultado[0] == hash_senha(senha):
@@ -113,10 +119,17 @@ def verificar_login(email, senha):
         cursor.execute("UPDATE usuarios SET sessao_ativa = ? WHERE email = ?", (nova_sessao, email_limpo))
         conn.commit()
         conn.close()
-        return True, resultado[1], bool(resultado[2]), bool(resultado[3]), nova_sessao
+        dados_usuario = {
+            "nome": resultado[1],
+            "celular": resultado[2] or "",
+            "registro": resultado[3] or "",
+            "is_pro": bool(resultado[4]),
+            "is_admin": bool(resultado[5])
+        }
+        return True, dados_usuario, nova_sessao
         
     conn.close()
-    return False, "", False, False, ""
+    return False, None, ""
 
 def validar_sessao_ativa(email, token_atual):
     if not email or not token_atual:
@@ -134,6 +147,13 @@ def atualizar_status_pro(email, status_pro):
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     cursor.execute("UPDATE usuarios SET is_pro = ? WHERE email = ?", (1 if status_pro else 0, email))
+    conn.commit()
+    conn.close()
+
+def atualizar_dados_profissional(email, nome, celular, registro):
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET nome = ?, celular = ?, registro = ? WHERE email = ?", (nome, celular, registro, email))
     conn.commit()
     conn.close()
 
@@ -241,6 +261,10 @@ if "usuario_email" not in st.session_state:
     st.session_state["usuario_email"] = ""
 if "usuario_nome" not in st.session_state:
     st.session_state["usuario_nome"] = ""
+if "usuario_celular" not in st.session_state:
+    st.session_state["usuario_celular"] = ""
+if "usuario_registro" not in st.session_state:
+    st.session_state["usuario_registro"] = ""
 if "is_pro" not in st.session_state:
     st.session_state["is_pro"] = False
 if "is_admin" not in st.session_state:
@@ -329,9 +353,9 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} — Registro: {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
+    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} | Registro: {dados_prof['registro']} | Celular: {dados_prof['celular']} | E-mail: {dados_prof['email']}\n")
     p_info.runs[0].bold = True
-    run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
+    run_norma = p_info.add_run("Data de Emissão: " + data_emissao + " | Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
     run_norma.italic = True
 
     def adicionar_secao_tabela(titulo, headers, col_widths, linhas):
@@ -373,17 +397,11 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ["Fator de Utilização", "u", f"{d['fator_u']:.2f}", d['desc_utilizacao']],
         ["Fator de Depreciação", "d", f"{d['fator_d']:.2f}", d['desc_depreciacao']]
     ])
-    adicionar_secao_tabela("3. Resultados do Dimensionamento", ["Item de Cálculo", "Valor Calculado", "Valor Adotado", "Unidade"], [Inches(3.0), Inches(1.2), Inches(1.3), Inches(1.0)], [
-        ["Fluxo Luminoso Necessário", f"{fluxo_req_fmt}", "—", "lm"],
-        ["Fluxo Luminoso Instalado (Real)", f"{fluxo_inst_fmt}", f"{fluxo_inst_fmt}", "lm"],
-        ["Diferencial de Fluxo (Variância)", f"{d['variacao_fluxo_pct']:+.1f}%", f"{d['variacao_fluxo_pct']:+.1f}%", "%"],
+    adicionar_secao_tabela("3. Resultados do Dimensionamento", ["Item de Cálculo", "Fluxo Necessário (Esperado)", "Fluxo Instalado (Real)", "Unidade / %"], [Inches(2.6), Inches(1.3), Inches(1.3), Inches(1.3)], [
+        ["Fluxo Luminoso Total", f"{fluxo_req_fmt} lm", f"{fluxo_inst_fmt} lm", f"{d['variacao_fluxo_pct']:+.1f}%"],
         ["Qtd. de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "un"],
-        ["Arranjo (Linhas x Colunas)", f"{d['linhas']} x {d['colunas']}", f"{d['linhas']} x {d['colunas']}", "arr."],
-        ["Distância entre Luminárias (C)", f"{d['dist_c']:.2f}", f"{d['dist_c']:.2f}", "m"],
-        ["Distância até Parede (C)", f"{d['dist_parede_c']:.2f}", f"{d['dist_parede_c']:.2f}", "m"],
-        ["Distância entre Luminárias (L)", f"{d['dist_l']:.2f}", f"{d['dist_l']:.2f}", "m"],
-        ["Distância até Parede (L)", f"{d['dist_parede_l']:.2f}", f"{d['dist_parede_l']:.2f}", "m"],
-        ["Iluminância Real Alcançada", "—", f"{d['lux_real']:.2f}", "lx"],
+        ["Arranjo (Linhas x Colunas)", f"—", f"{d['linhas']} x {d['colunas']}", "arr."],
+        ["Iluminância Alcançada", f"{d['lux_req']:.1f} lx", f"{d['lux_real']:.2f} lx", f"{((d['lux_real']-d['lux_req'])/d['lux_req'])*100:+.1f}%"],
         ["Potência Total", "—", f"{d['pot_total']:.2f}", "W"],
         ["Densidade de Potência (DPI)", "—", f"{d['dpi']:.2f}", "W/m²"]
     ])
@@ -447,13 +465,15 @@ if not st.session_state["autenticado"]:
         email_login = st.text_input("E-mail", key="email_l")
         senha_login = st.text_input("Senha", type="password", key="senha_l")
         if st.button("Entrar", use_container_width=True):
-            sucesso, nome_cad, status_pro_db, status_admin_db, token_sessao_nova = verificar_login(email_login, senha_login)
+            sucesso, dados_cad, token_sessao_nova = verificar_login(email_login, senha_login)
             if sucesso:
                 st.session_state["autenticado"] = True
                 st.session_state["usuario_email"] = email_login.strip().lower()
-                st.session_state["usuario_nome"] = nome_cad
-                st.session_state["is_pro"] = status_pro_db
-                st.session_state["is_admin"] = status_admin_db
+                st.session_state["usuario_nome"] = dados_cad["nome"]
+                st.session_state["usuario_celular"] = dados_cad["celular"]
+                st.session_state["usuario_registro"] = dados_cad["registro"]
+                st.session_state["is_pro"] = dados_cad["is_pro"]
+                st.session_state["is_admin"] = dados_cad["is_admin"]
                 st.session_state["token_sessao"] = token_sessao_nova
                 st.success("Login efetuado com sucesso!")
                 st.rerun()
@@ -464,16 +484,29 @@ if not st.session_state["autenticado"]:
         st.subheader("Novo Cadastro")
         nome_cad_input = st.text_input("Nome Completo", key="nome_c")
         email_cad_input = st.text_input("E-mail", key="email_c")
+        celular_cad_input = st.text_input("Celular (WhatsApp)", key="cel_c", placeholder="(21) 99999-9999")
+        registro_cad_input = st.text_input("Registro (CREA, CAU, CFT ou CPF)", key="reg_c", placeholder="Ex: CREA-RJ 123456")
         senha_cad_input = st.text_input("Senha", type="password", key="senha_c")
-        if st.button("Cadastrar", use_container_width=True):
+        
+        if st.button("Cadastrar e Ir para Pagamento", use_container_width=True):
             if nome_cad_input and email_cad_input and senha_cad_input:
-                ok, msg = cadastrar_usuario(email_cad_input, senha_cad_input, nome_cad_input)
+                ok, msg = cadastrar_usuario(email_cad_input, senha_cad_input, nome_cad_input, celular_cad_input, registro_cad_input)
                 if ok:
-                    st.success(msg + " Sua conta foi criada com sucesso! Faça login na aba 'Entrar' para acessar o sistema.")
+                    # Logar automaticamente após criar a conta
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario_email"] = email_cad_input.strip().lower()
+                    st.session_state["usuario_nome"] = nome_cad_input
+                    st.session_state["usuario_celular"] = celular_cad_input
+                    st.session_state["usuario_registro"] = registro_cad_input
+                    st.session_state["is_pro"] = False
+                    st.session_state["is_admin"] = False
+                    st.session_state["token_sessao"] = str(uuid.uuid4())
+                    st.success("Conta criada! Redirecionando para o pagamento...")
+                    st.rerun()
                 else:
                     st.error(msg)
             else:
-                st.warning("Preencha todos os campos.")
+                st.warning("Preencha ao menos Nome, E-mail e Senha.")
 
     with aba_recuperar:
         st.subheader("Recuperar Senha")
@@ -511,25 +544,43 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 st.sidebar.success(f"Olá, **{st.session_state['usuario_nome']}**!")
-plano_atual_str = "👑 ADMINISTRADOR (Dono)" if st.session_state["is_admin"] else ("🚀 PRO" if st.session_state["is_pro"] else "📌 Básico")
+plano_atual_str = "👑 ADMINISTRADOR (Dono)" if st.session_state["is_admin"] else ("🚀 PRO" if st.session_state["is_pro"] else "📌 Básico (Pendente)")
 st.sidebar.info(f"Perfil: **{plano_atual_str}**")
-
-if not st.session_state["is_admin"] and not st.session_state["is_pro"]:
-    if st.sidebar.button("💎 Pagar R$ 49,90 via Mercado Pago", use_container_width=True):
-        link_mp = criar_link_pagamento_mp(st.session_state["usuario_email"])
-        if link_mp:
-            st.sidebar.markdown(f"🔗 [Abrir Checkout]({link_mp})", unsafe_allow_html=True)
 
 if st.sidebar.button("🚪 Sair da Conta", use_container_width=True):
     st.session_state["autenticado"] = False
     st.rerun()
+
+# --- BLOQUEIO DE ACESSO SE NÃO FOR PRO OU ADMIN ---
+if not st.session_state["is_admin"] and not st.session_state["is_pro"]:
+    st.warning("🔒 **Acesso Restrito: Assinatura Pendente**")
+    st.markdown("""
+    Para utilizar o Sistema Luminotécnico Completo e gerar laudos profissionais, é necessário realizar a ativação da sua licença PRO por **R$ 49,90**.
+    """)
+    
+    link_mp = criar_link_pagamento_mp(st.session_state["usuario_email"])
+    if link_mp:
+        st.markdown(f"""
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{link_mp}" target="_blank" style="background-color: #009EE3; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-size: 18px; font-weight: bold;">
+                💳 Pagar Licença PRO via Mercado Pago
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.error("Erro ao gerar link de pagamento. Tente novamente mais tarde.")
+        
+    if st.button("🔄 Já realizei o pagamento / Atualizar Status"):
+        st.rerun()
+        
+    st.stop()
 
 # --- PAINEL DO DONO (ADMIN) EXCLUSIVO ---
 if st.session_state["is_admin"]:
     with st.expander("👑 Painel de Controle do Dono (Administrador)", expanded=False):
         st.write("Gerenciamento geral de usuários cadastrados no banco de dados.")
         conn_adm = sqlite3.connect(ARQUIVO_DB_USUARIOS)
-        df_usuarios = pd.read_sql("SELECT email, nome, is_pro, is_admin FROM usuarios", conn_adm)
+        df_usuarios = pd.read_sql("SELECT email, nome, celular, registro, is_pro, is_admin FROM usuarios", conn_adm)
         conn_adm.close()
         st.dataframe(df_usuarios, use_container_width=True)
         
@@ -557,8 +608,17 @@ logo_upload = st.sidebar.file_uploader("Sua Logo", type=["png", "jpg", "jpeg"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Responsável Técnico")
-prof_nome = st.sidebar.text_input("Nome do Profissional", "")
-prof_registro = st.sidebar.text_input("Registro (CREA, CAU, CFT ou CPF)", "")
+prof_nome = st.sidebar.text_input("Nome", value=st.session_state["usuario_nome"])
+prof_email = st.sidebar.text_input("E-mail", value=st.session_state["usuario_email"])
+prof_celular = st.sidebar.text_input("Celular", value=st.session_state["usuario_celular"])
+prof_registro = st.sidebar.text_input("CREA, CAU, CFT ou CPF", value=st.session_state["usuario_registro"])
+
+if st.sidebar.button("💾 Salvar Dados do Responsável"):
+    atualizar_dados_profissional(st.session_state["usuario_email"], prof_nome, prof_celular, prof_registro)
+    st.session_state["usuario_nome"] = prof_nome
+    st.session_state["usuario_celular"] = prof_celular
+    st.session_state["usuario_registro"] = prof_registro
+    st.sidebar.success("Dados atualizados!")
 
 TABELA_NORMA = {
     "Dormitórios / Suítes": 200,
@@ -687,7 +747,6 @@ for idx, tab in enumerate(tabs):
 
         fluxo_instalado = qtd_real_ajustada * fluxo_lampada
         
-        # Cálculo da porcentagem de variação entre o fluxo instalado e o necessário
         if fluxo_req_teorico > 0:
             variacao_fluxo_pct = ((fluxo_instalado - fluxo_req_teorico) / fluxo_req_teorico) * 100.0
         else:
@@ -716,7 +775,12 @@ st.subheader("📥 Emissão de Relatório Seguro (.docx)")
 
 if st.button("Gerar Relatório Técnico Completo", use_container_width=True):
     dados_cliente = {"nome": cli_nome if cli_nome else "Cliente Geral"}
-    dados_prof = {"nome": prof_nome if prof_nome else st.session_state["usuario_nome"], "registro": prof_registro or "Não informado"}
+    dados_prof = {
+        "nome": prof_nome if prof_nome else st.session_state["usuario_nome"], 
+        "email": prof_email if prof_email else st.session_state["usuario_email"],
+        "celular": prof_celular if prof_celular else st.session_state["usuario_celular"],
+        "registro": prof_registro if prof_registro else "Não informado"
+    }
     arquivo_docx = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_upload)
     
     st.download_button(
@@ -726,4 +790,3 @@ if st.button("Gerar Relatório Técnico Completo", use_container_width=True):
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
-    
