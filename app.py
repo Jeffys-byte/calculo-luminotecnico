@@ -7,9 +7,29 @@ import io
 import tempfile
 import os
 
-# --- FUNÇÃO DE GERAÇÃO DE PDF NATIVO (FPDF2) ---
+# --- CLASSE CUSTOMIZADA DO PDF (Com suporte a UTF-8 / latin-1 sanitizado) ---
+class PDF(FPDF):
+    def sanitize(self, text):
+        # Substitui caracteres especiais incompatíveis com Helvetica padrão
+        replacements = {
+            "•": "-",
+            "—": "-",
+            "–": "-",
+            "“": '"',
+            "”": '"',
+            "’": "'"
+        }
+        for orig, sub in replacements.items():
+            text = text.replace(orig, sub)
+        # Converte para a codificação aceita pelas fontes nativas
+        return text.encode('latin-1', 'replace').decode('latin-1')
+
+    def text_cell(self, w, h, txt, border=0, ln=0, align='', fill=False):
+        self.cell(w, h, self.sanitize(str(txt)), border=border, ln=ln, align=align, fill=fill)
+
+# --- FUNÇÃO DE GERAÇÃO DE PDF NATIVO ---
 def gerar_pdf(dados_cliente, dados_prof, dados_ambiente, logo_file=None):
-    pdf = FPDF()
+    pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
@@ -30,52 +50,52 @@ def gerar_pdf(dados_cliente, dados_prof, dados_ambiente, logo_file=None):
 
     # Cabeçalho do Documento
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "MEMORIAL DE CÁLCULO LUMINOTÉCNICO", ln=True, align="C")
+    pdf.text_cell(0, 10, "MEMORIAL DE CÁLCULO LUMINOTÉCNICO", ln=True, align="C")
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, "Em conformidade com a NBR ISO/CIE 8995-1", ln=True, align="C")
+    pdf.text_cell(0, 6, "Em conformidade com a NBR ISO/CIE 8995-1", ln=True, align="C")
     pdf.ln(8)
     
-    # Bloco: Identificação das Partes
+    # Bloco 1: Identificação
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "1. Identificação do Projeto", ln=True)
+    pdf.text_cell(0, 8, "1. Identificação do Projeto", ln=True)
     pdf.set_font("Helvetica", "", 10)
     
-    pdf.cell(0, 6, f"Cliente / Empreendimento: {dados_cliente['nome']}", ln=True)
+    pdf.text_cell(0, 6, f"Cliente / Empreendimento: {dados_cliente['nome']}", ln=True)
     if dados_cliente['doc']:
-        pdf.cell(0, 6, f"CPF/CNPJ: {dados_cliente['doc']}", ln=True)
+        pdf.text_cell(0, 6, f"CPF/CNPJ: {dados_cliente['doc']}", ln=True)
     if dados_cliente['endereco']:
-        pdf.cell(0, 6, f"Endereço: {dados_cliente['endereco']}", ln=True)
+        pdf.text_cell(0, 6, f"Endereço: {dados_cliente['endereco']}", ln=True)
         
     pdf.ln(3)
-    pdf.cell(0, 6, f"Responsável Técnico: {dados_prof['nome']}", ln=True)
-    pdf.cell(0, 6, f"Registro (CREA/CFT): {dados_prof['registro']}", ln=True)
+    pdf.text_cell(0, 6, f"Responsável Técnico: {dados_prof['nome']}", ln=True)
+    pdf.text_cell(0, 6, f"Registro (CREA/CFT): {dados_prof['registro']}", ln=True)
     if dados_prof['contato']:
-        pdf.cell(0, 6, f"Contato/E-mail: {dados_prof['contato']}", ln=True)
+        pdf.text_cell(0, 6, f"Contato/E-mail: {dados_prof['contato']}", ln=True)
     pdf.ln(6)
 
-    # Bloco: Dados do Ambiente
+    # Bloco 2: Dados do Ambiente
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, f"2. Dados do Recinto: {dados_ambiente['nome']}", ln=True)
+    pdf.text_cell(0, 8, f"2. Dados do Recinto: {dados_ambiente['nome']}", ln=True)
     pdf.set_font("Helvetica", "", 10)
     
-    pdf.cell(0, 6, f"• Dimensões: {dados_ambiente['comprimento']}m (C) x {dados_ambiente['largura']}m (L) x {dados_ambiente['pe_direito']}m (H)", ln=True)
-    pdf.cell(0, 6, f"• Área Útil Total: {dados_ambiente['area']:.2f} m²", ln=True)
-    pdf.cell(0, 6, f"• Atividade: {dados_ambiente['atividade']}", ln=True)
-    pdf.cell(0, 6, f"• Iluminância Alvo Requerida (NBR 8995-1): {dados_ambiente['lux_req']} lx", ln=True)
+    pdf.text_cell(0, 6, f"- Dimensões: {dados_ambiente['comprimento']}m (C) x {dados_ambiente['largura']}m (L) x {dados_ambiente['pe_direito']}m (H)", ln=True)
+    pdf.text_cell(0, 6, f"- Área Útil Total: {dados_ambiente['area']:.2f} m2", ln=True)
+    pdf.text_cell(0, 6, f"- Atividade: {dados_ambiente['atividade']}", ln=True)
+    pdf.text_cell(0, 6, f"- Iluminância Alvo Requerida (NBR 8995-1): {dados_ambiente['lux_req']} lx", ln=True)
     pdf.ln(6)
 
-    # Bloco: Resultados
+    # Bloco 3: Resultados
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "3. Dimensionamento e Resultados", ln=True)
+    pdf.text_cell(0, 8, "3. Dimensionamento e Resultados", ln=True)
     pdf.set_font("Helvetica", "", 10)
     
-    pdf.cell(0, 6, f"• Índice do Recinto (K): {dados_ambiente['k_indice']:.2f}", ln=True)
-    pdf.cell(0, 6, f"• Quantidade de Luminárias Necessárias: {dados_ambiente['qtd_lum']} un", ln=True)
-    pdf.cell(0, 6, f"• Potência Instalada Total: {dados_ambiente['pot_total']:.1f} W", ln=True)
-    pdf.cell(0, 6, f"• Densidade de Potência: {dados_ambiente['densidade']:.2f} W/m²", ln=True)
+    pdf.text_cell(0, 6, f"- Índice do Recinto (K): {dados_ambiente['k_indice']:.2f}", ln=True)
+    pdf.text_cell(0, 6, f"- Quantidade de Luminárias Necessárias: {dados_ambiente['qtd_lum']} un", ln=True)
+    pdf.text_cell(0, 6, f"- Potência Instalada Total: {dados_ambiente['pot_total']:.1f} W", ln=True)
+    pdf.text_cell(0, 6, f"- Densidade de Potência: {dados_ambiente['densidade']:.2f} W/m2", ln=True)
     pdf.ln(10)
 
-    # Retorna o PDF gerado em memória
+    # Output para buffer em memória
     buffer = io.BytesIO()
     pdf_output = pdf.output()
     buffer.write(pdf_output)
@@ -161,7 +181,7 @@ with tab1:
 
     st.markdown("---")
     
-    # Organização das estruturas de dados
+    # Estruturas de dados
     dados_cliente = {"nome": cli_nome, "doc": cli_doc, "endereco": cli_end}
     dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
     dados_ambiente = {
@@ -171,7 +191,6 @@ with tab1:
         "pot_total": potencia_total, "densidade": densidade_potencia
     }
     
-    # Geração do arquivo PDF em memória
     buffer_pdf = gerar_pdf(dados_cliente, dados_prof, dados_ambiente, logo_file=logo_upload)
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
