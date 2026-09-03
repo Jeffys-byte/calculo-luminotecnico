@@ -73,7 +73,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Inserção e espaçamento correto da Logo
+    # Inserção da Logo no canto esquerdo e menor
     if logo_file is not None:
         logo_file.seek(0)
         ext = logo_file.name.split('.')[-1].lower()
@@ -82,47 +82,54 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
                 tmp_file.write(logo_file.read())
                 tmp_path = tmp_file.name
             try:
-                # Posiciona a logo no centro
-                pdf.image(tmp_path, x=80, y=12, w=50)
-                # Move o cursor Y para baixo da imagem para não sobrepor o texto
-                pdf.set_y(40)
+                # Posiciona no canto esquerdo (x=10, y=10) com largura reduzida (w=25)
+                pdf.image(tmp_path, x=10, y=10, w=25)
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
+        # Inicia o texto logo abaixo da imagem
+        pdf.set_y(38)
     else:
         pdf.set_y(15)
 
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 8, pdf.sanitize("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO"), ln=1, align="C")
-    pdf.set_font("Helvetica", "I", 10)
-    pdf.cell(0, 5, pdf.sanitize("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens"), ln=1, align="C")
-    pdf.ln(3)
+    # Título do Relatório
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 7, pdf.sanitize("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO"), align="C")
+    pdf.ln(7)
+    
+    pdf.set_font("Helvetica", "I", 9.5)
+    pdf.cell(0, 5, pdf.sanitize("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens"), align="C")
+    pdf.ln(5)
 
-    pdf.set_font("Helvetica", "", 9)
-    pdf.cell(0, 5, pdf.sanitize(f"Engenheiro Responsável: {dados_prof['nome']} - {dados_prof['registro']}"), ln=1, align="C")
-    pdf.cell(0, 5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), ln=1, align="C")
-    pdf.ln(6)
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.cell(0, 4.5, pdf.sanitize(f"Engenheiro Responsável: {dados_prof['nome']} - {dados_prof['registro']}"), align="C")
+    pdf.ln(4.5)
+    pdf.cell(0, 4.5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), align="C")
+    pdf.ln(8)
 
+    # Função interna para gerar as tabelas sem quebrar o retorno no Streamlit
     def criar_tabela_pdf(titulo, colunas, largura_cols, dados):
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 7, pdf.sanitize(titulo), ln=1)
-        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_font("Helvetica", "B", 10.5)
+        pdf.cell(0, 6, pdf.sanitize(titulo))
+        pdf.ln(6)
+        
+        pdf.set_font("Helvetica", "B", 8.5)
         pdf.set_fill_color(31, 78, 121)
         pdf.set_text_color(255, 255, 255)
         
         for idx, col in enumerate(colunas):
-            is_last = (idx == len(colunas) - 1)
-            pdf.cell(largura_cols[idx], 6, pdf.sanitize(col), border=1, ln=1 if is_last else 0, align="C", fill=True)
+            pdf.cell(largura_cols[idx], 6, pdf.sanitize(col), border=1, align="C", fill=True)
+        pdf.ln(6)
         
         pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Helvetica", "", 8.5)
+        pdf.set_font("Helvetica", "", 8)
         for r_idx, linha in enumerate(dados):
             fill = (r_idx % 2 == 1)
             pdf.set_fill_color(242, 242, 242) if fill else pdf.set_fill_color(255, 255, 255)
             for c_idx, val in enumerate(linha):
                 align = "C" if c_idx in [1, 2] else "L"
-                is_last = (c_idx == len(linha) - 1)
-                pdf.cell(largura_cols[c_idx], 5.5, pdf.sanitize(str(val)), border=1, ln=1 if is_last else 0, align=align, fill=fill)
+                pdf.cell(largura_cols[c_idx], 5.2, pdf.sanitize(str(val)), border=1, align=align, fill=fill)
+            pdf.ln(5.2)
         pdf.ln(4)
 
     # 1. Identificação
@@ -184,19 +191,20 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     )
 
     # 5. Parecer Técnico
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 7, pdf.sanitize("5. Parecer Técnico e Conformidade"), ln=1)
-    pdf.set_font("Helvetica", "", 9)
+    pdf.set_font("Helvetica", "B", 10.5)
+    pdf.cell(0, 6, pdf.sanitize("5. Parecer Técnico e Conformidade"))
+    pdf.ln(6)
     
+    pdf.set_font("Helvetica", "", 8.5)
     status_str = "CONFORME (Projeto aprovado e recomendado para execução)." if d['conforme'] else "NÃO CONFORME (Revisar fluxo luminoso ou quantidade)."
     
     w_page = pdf.w - pdf.l_margin - pdf.r_margin
 
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    pdf.set_font("Helvetica", "B", 8.5)
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
 
     buffer = io.BytesIO()
     pdf_output = pdf.output()
@@ -217,9 +225,9 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
 
     if logo_file is not None:
         p_logo = doc.add_paragraph()
-        p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
         logo_file.seek(0)
-        p_logo.add_run().add_picture(logo_file, width=Inches(1.8))
+        p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
         doc.add_paragraph()
 
     # Cabeçalho
