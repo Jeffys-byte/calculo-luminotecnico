@@ -55,10 +55,168 @@ def format_table_rows(table, col_widths=None):
             if col_widths and c_idx < len(col_widths):
                 cell.width = col_widths[c_idx]
 
-# --- FUNÇÃO DE GERAÇÃO DE WORD EM LOTE (.DOCX) ---
-def gerar_docx_lote(dados_cliente, dados_prof, df_resultados, logo_file=None):
+# --- FUNÇÃO DE GERAÇÃO DE WORD INDIVIDUAL (USADA NO LOTE PARA CADA AMBIENTE) ---
+def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
+    # Cabeçalho do Ambiente
+    p_titulo = doc.add_paragraph()
+    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_titulo.paragraph_format.space_before = Pt(12)
+    p_titulo.paragraph_format.space_after = Pt(2)
+    run1 = p_titulo.add_run(f"RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO\nAMBIENTE: {d['nome'].upper()}")
+    run1.bold = True
+    run1.font.size = Pt(13)
+    run1.font.color.rgb = RGBColor(31, 78, 121)
+
+    p_sub = doc.add_paragraph()
+    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_sub.paragraph_format.space_after = Pt(4)
+    run_sub = p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente['nome']} | Método dos Lúmens")
+    run_sub.font.size = Pt(10)
+    run_sub.italic = True
+    run_sub.font.color.rgb = RGBColor(89, 89, 89)
+
+    p_info = doc.add_paragraph()
+    p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_info.paragraph_format.space_after = Pt(10)
+    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n").bold = True
+    p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)").italic = True
+
+    def adicionar_secao_tabela(titulo, headers, col_widths, linhas):
+        doc.add_heading(titulo, level=2)
+        tbl = doc.add_table(rows=1, cols=len(headers))
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        hdr_cells = tbl.rows[0].cells
+        for idx, h_text in enumerate(headers):
+            hdr_cells[idx].text = h_text
+        format_table_header(tbl.rows[0], col_widths)
+
+        for r_data in linhas:
+            row_cells = tbl.add_row().cells
+            for c_idx, val in enumerate(r_data):
+                row_cells[c_idx].text = str(val)
+                if c_idx in [1, 2]:
+                    row_cells[c_idx].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        format_table_rows(tbl, col_widths)
+        doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
+    # 1. Identificação
+    adicionar_secao_tabela(
+        "1. Identificação e Dados Geométricos do Ambiente",
+        ["Parâmetro", "Símbolo", "Valor", "Unidade"],
+        [Inches(3.0), Inches(0.8), Inches(1.2), Inches(1.5)],
+        [
+            ["Nome / Identificação do Ambiente", "—", d['nome'], "—"],
+            ["Comprimento do Recinto", "C", f"{d['comp']:.2f}", "m"],
+            ["Largura do Recinto", "L", f"{d['larg']:.2f}", "m"],
+            ["Pé-Direito Total (Piso ao Teto)", "H", f"{d['pe_direito']:.2f}", "m"],
+            ["Altura do Plano de Trabalho", "hp", f"{d['hp']:.2f}", "m"],
+            ["Pendotamento / Descimento da Luminária", "hp'", f"{d['hp_desc']:.2f}", "m"],
+            ["Área Total Calculada", "A", f"{d['area']:.2f}", "m²"],
+            ["Altura Útil de Iluminação", "hu", f"{d['hu']:.2f}", "m"]
+        ]
+    )
+
+    # 2. Parâmetros Luminotécnicos
+    adicionar_secao_tabela(
+        "2. Parâmetros Luminotécnicos Adotados",
+        ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Observações / Norma"],
+        [Inches(2.5), Inches(0.8), Inches(1.2), Inches(2.0)],
+        [
+            ["Iluminância Requerida (Meta)", "Ereq", f"{d['lux_req']} lx", "NBR ISO/CIE 8995-1"],
+            ["Fluxo Luminoso da Luminária/Cúpula", "Φlâmpada", f"{d['fluxo']:,} lm".replace(",", "."), "Dado do fabricante do LED/Luminária"],
+            ["Potência Unitária da Luminária", "Punit", f"{d['potencia']} W", "Consumo elétrico unitário (W)"],
+            ["Índice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria do espaço: (C × L) / [hu × (C + L)]"],
+            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância padrão"],
+            ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", "Manutenção para ambiente limpo"]
+        ]
+    )
+
+    # 3. Resultados
+    adicionar_secao_tabela(
+        "3. Resultados do Dimensionamento e Iluminância",
+        ["Item de Cálculo", "Valor Calculado", "Valor Adotado / Real", "Unidade"],
+        [Inches(3.0), Inches(1.2), Inches(1.3), Inches(1.0)],
+        [
+            ["Fluxo Luminoso Requerido (Teórico)", f"{d['fluxo_req']:.2f}", "—", "lm"],
+            ["Quantidade Mínima de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "unidades"],
+            ["Fluxo Luminoso Real Instalado", "—", f"{d['fluxo_instalado']:,}".replace(",", "."), "lm"],
+            ["Iluminância Real Alcançada", "—", f"{d['lux_real']:.2f}", "lx"],
+            ["Potência Total Instalada", "—", f"{d['pot_total']:.2f}", "W"],
+            ["Densidade de Potência Iluminada (DPI)", "—", f"{d['dpi']:.2f}", "W/m²"]
+        ]
+    )
+
+    # 4. Disposição Espacial
+    adicionar_secao_tabela(
+        "4. Disposição Espacial e Layout de Instalação",
+        ["Eixo de Instalação", "Arranjo (Linhas × Colunas)", "Distância entre Luminárias", "Distância das Paredes"],
+        [Inches(2.2), Inches(1.8), Inches(1.3), Inches(1.2)],
+        [
+            ["Eixo Longitudinal (Comprimento)", f"{d['linhas']} Linhas", f"{d['dist_c']:.2f} m", f"{d['dist_parede_c']:.2f} m"],
+            ["Eixo Transversal (Largura)", f"{d['colunas']} Colunas", f"{d['dist_l']:.2f} m", f"{d['dist_parede_l']:.2f} m"]
+        ]
+    )
+
+    # 5. Parecer Técnico
+    doc.add_heading("5. Parecer Técnico e Conformidade", level=2)
+    
+    p1 = doc.add_paragraph()
+    p1.add_run("• Nível de Iluminância: ").bold = True
+    p1.add_run(f"O valor projetado atinge {d['lux_real']:.2f} lx, ")
+    if d['conforme']:
+        p1.add_run(f"atendendo com folga a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente.")
+    else:
+        p1.add_run(f"abaixo da meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1. Recomenda-se ajustar o número ou potência das luminárias.")
+
+    p2 = doc.add_paragraph()
+    p2.add_run("• Eficiência Energética: ").bold = True
+    p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², estando dentro dos padrões de alta eficiência para iluminação em LED.")
+
+    p3 = doc.add_paragraph()
+    p3.add_run("• Uniformidade Espacial: ").bold = True
+    p3.add_run(f"A distribuição em matriz {d['linhas']} × {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso.")
+
+    p4 = doc.add_paragraph()
+    p4.add_run("• Status Final de Aprovação: ").bold = True
+    run_status = p4.add_run("CONFORME (Projeto aprovado e recomendado para execução)." if d['conforme'] else "NÃO CONFORME (Projeto requer ajustes).")
+    run_status.bold = True
+    run_status.font.color.rgb = RGBColor(38, 128, 0) if d['conforme'] else RGBColor(200, 0, 0)
+
+# --- FUNÇÃO PRINCIPAL DE GERAÇÃO EM LOTE (.DOCX) ---
+def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=None):
     doc = docx.Document()
     
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(0.8)
+        section.bottom_margin = Inches(0.8)
+        section.left_margin = Inches(0.8)
+        section.right_margin = Inches(0.8)
+
+    if logo_file is not None:
+        p_logo = doc.add_paragraph()
+        p_logo.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        logo_file.seek(0)
+        p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
+        doc.add_paragraph()
+
+    # Itera sobre cada ambiente gerando o relatório completo individualmente
+    for idx, d in enumerate(lista_dados_ambientes):
+        adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
+        # Se não for o último ambiente, adiciona uma quebra de página entre eles
+        if idx < len(lista_dados_ambientes) - 1:
+            doc.add_page_break()
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# --- FUNÇÃO DE GERAÇÃO INDIVIDUAL ---
+def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
+    doc = docx.Document()
     sections = doc.sections
     for section in sections:
         section.top_margin = Inches(0.8)
@@ -77,7 +235,7 @@ def gerar_docx_lote(dados_cliente, dados_prof, df_resultados, logo_file=None):
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_titulo.paragraph_format.space_after = Pt(2)
-    run1 = p_titulo.add_run("RELATÓRIO GERAL DE DIMENSIONAMENTO LUMINOTÉCNICO (EM LOTE)")
+    run1 = p_titulo.add_run("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO")
     run1.bold = True
     run1.font.size = Pt(14)
     run1.font.color.rgb = RGBColor(31, 78, 121)
@@ -85,9 +243,10 @@ def gerar_docx_lote(dados_cliente, dados_prof, df_resultados, logo_file=None):
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_sub.paragraph_format.space_after = Pt(6)
-    run_sub = p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente['nome']}")
-    run_sub.font.size = Pt(11)
-    run_sub.bold = True
+    run_sub = p_sub.add_run("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens")
+    run_sub.font.size = Pt(10)
+    run_sub.italic = True
+    run_sub.font.color.rgb = RGBColor(89, 89, 89)
 
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -95,48 +254,7 @@ def gerar_docx_lote(dados_cliente, dados_prof, df_resultados, logo_file=None):
     p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n").bold = True
     p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)").italic = True
 
-    doc.add_heading("1. Resumo Consolidado dos Ambientes", level=2)
-    
-    headers = ["Ambiente", "Área (m²)", "Meta (lx)", "Real (lx)", "Luminárias", "Pot. (W)", "Status"]
-    col_widths = [Inches(1.8), Inches(0.9), Inches(0.9), Inches(0.9), Inches(1.0), Inches(0.9), Inches(1.2)]
-    
-    tbl = doc.add_table(rows=1, cols=len(headers))
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    
-    hdr_cells = tbl.rows[0].cells
-    for idx, h_text in enumerate(headers):
-        hdr_cells[idx].text = h_text
-    format_table_header(tbl.rows[0], col_widths)
-
-    for _, row in df_resultados.iterrows():
-        row_cells = tbl.add_row().cells
-        row_cells[0].text = str(row['Ambiente'])
-        row_cells[1].text = f"{row['Área (m²)']:.2f}"
-        row_cells[2].text = f"{row['Meta (lx)']}"
-        row_cells[3].text = f"{row['Real (lx)']:.2f}"
-        row_cells[4].text = f"{row['Luminárias']} un"
-        row_cells[5].text = f"{row['Pot. Total (W)']:.2f}"
-        row_cells[6].text = "CONFORME" if row['Conforme'] else "NÃO CONFORME"
-        
-        for c_idx in range(1, len(headers)):
-            row_cells[c_idx].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    format_table_rows(tbl, col_widths)
-    doc.add_paragraph().paragraph_format.space_after = Pt(12)
-
-    # Detalhamento individual por ambiente
-    doc.add_heading("2. Detalhamento Técnico por Ambiente", level=2)
-    for _, r in df_resultados.iterrows():
-        p_amb = doc.add_paragraph()
-        p_amb.add_run(f"📌 Ambiente: {r['Ambiente']}").bold = True
-        
-        p_det = doc.add_paragraph()
-        p_det.paragraph_format.left_indent = Inches(0.2)
-        p_det.add_run(f"• Dimensões: {r['Comp (m)']:.2f}m × {r['Larg (m)']:.2f}m | Pé-Direito: {r['Pé-Direito (m)']:.2f}m\n")
-        p_det.add_run(f"• Índice K: {r['Índice K']:.2f} | Fator Utilização (u): {r['Fator u']:.2f} | Depreciação (d): {r['Fator d']:.2f}\n")
-        p_det.add_run(f"• Arranjo Espacial: {r['Linhas']} Linhas × {r['Colunas']} Colunas\n")
-        p_det.add_run(f"• Espaçamentos: Eixo C = {r['Dist. C (m)']:.2f}m (Paredes: {r['Dist. Parede C (m)']:.2f}m) | Eixo L = {r['Dist. L (m)']:.2f}m (Paredes: {r['Dist. Parede L (m)']:.2f}m)\n")
-        p_det.add_run(f"• Densidade de Potência (DPI): {r['DPI (W/m²)']:.2f} W/m²")
+    adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -256,28 +374,32 @@ with tab1:
     dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
-    # Gerar Word individual
-    from docx import Document # type: ignore
-    # (A função gerar_docx está disponível do contexto anterior, mas vamos usar a lógica direta ou redefinir se precisar)
+    docx_data = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
+
+    st.download_button(
+        label="📝 Baixar Relatório em Word (.DOCX)",
+        data=docx_data,
+        file_name=f"Relatorio_Luminotecnico_{nome_sanitizado}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True
+    )
 
 # --- ABA DE GERENCIAMENTO EM LOTE ---
 with tab2:
     st.subheader("📋 Planilha de Dimensionamento em Lote")
-    st.write("Adicione ou edite os ambientes diretamente na tabela abaixo. O sistema calculará automaticamente os resultados para todos os cômodos de uma só vez.")
+    st.write("Adicione ou edite os ambientes na tabela. O relatório final gerado conterá a estrutura completa detalhada (tabelas e pareceres) de forma sequencial para cada cômodo.")
 
-    # Dados padrão iniciais para a tabela em lote
     data_inicial = pd.DataFrame([
         {"Ambiente": "Sala de Estar", "Comprimento (m)": 6.0, "Largura (m)": 4.0, "Pé-Direito (m)": 2.8, "Meta Lux": 150, "Fluxo Lâmpada (lm)": 1800, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
         {"Ambiente": "Cozinha", "Comprimento (m)": 4.0, "Largura (m)": 3.0, "Pé-Direito (m)": 2.8, "Meta Lux": 300, "Fluxo Lâmpada (lm)": 2400, "Potência (W)": 30, "Fator u": 0.5, "Fator d": 0.8},
         {"Ambiente": "Quarto Principal", "Comprimento (m)": 4.5, "Largura (m)": 3.5, "Pé-Direito (m)": 2.8, "Meta Lux": 200, "Fluxo Lâmpada (lm)": 1800, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
-        {"Ambiente": "Banheiro", "Comprimento (m)": 2.5, "Largura (m)": 2.0, "Pé-Direito (m)": 2.8, "Meta Lux": 300, "Fluxo Lâmpada (lm)": 1200, "Potência (W)": 15, "Fator u": 0.5, "Fator d": 0.8},
-        {"Ambiente": "Corredor", "Comprimento (m)": 5.0, "Largura (m)": 1.5, "Pé-Direito (m)": 2.8, "Meta Lux": 100, "Fluxo Lâmpada (lm)": 900, "Potência (W)": 12, "Fator u": 0.4, "Fator d": 0.8},
     ])
 
     df_editado = st.data_editor(data_inicial, num_rows="dynamic", use_container_width=True)
+    cli_nome_lote = st.text_input("Cliente / Empreendimento (Para o lote)", "Projeto Residencial Completo")
 
-    if st.button("🚀 Processar e Gerar Relatório Consolidado em Lote", type="primary"):
-        resultados_lote = []
+    if st.button("🚀 Processar e Gerar Relatório Completo em Lote", type="primary"):
+        lista_ambientes = []
         hp_padrao = 0.75
 
         for _, row in df_editado.iterrows():
@@ -308,45 +430,33 @@ with tab2:
             colunas = max(1, round(math.sqrt(qtd_real / ratio)))
             linhas = max(1, math.ceil(qtd_real / colunas))
             dist_c = comp / linhas if linhas > 0 else 0
-            dist_l = larg / colunas if colunas > 0 else 0
+            dist_l = largura / colunas if largura > 0 else 0
 
-            resultados_lote.append({
-                "Ambiente": row["Ambiente"],
-                "Área (m²)": area,
-                "Comp (m)": comp,
-                "Larg (m)": larg,
-                "Pé-Direito (m)": pe_dir,
-                "Meta (lx)": meta_lux,
-                "Real (lx)": lux_real,
-                "Luminárias": qtd_real,
-                "Pot. Total (W)": pot_tot,
-                "DPI (W/m²)": dpi,
-                "Conforme": conforme,
-                "Índice K": k,
-                "Fator u": u,
-                "Fator d": d,
-                "Linhas": linhas,
-                "Colunas": colunas,
-                "Dist. C (m)": dist_c,
-                "Dist. Parede C (m)": dist_c / 2,
-                "Dist. L (m)": dist_l,
-                "Dist. Parede L (m)": dist_l / 2
+            lista_ambientes.append({
+                "nome": row["Ambiente"], "comp": comp, "larg": larg,
+                "pe_direito": pe_dir, "hp": hp_padrao, "hp_desc": 0.0,
+                "area": area, "hu": hu, "lux_req": meta_lux,
+                "fluxo": fluxo, "potencia": pot,
+                "k_indice": k, "fator_u": u, "fator_d": d,
+                "fluxo_req": fluxo_req, "qtd_teorica": qtd_tec,
+                "qtd_real": qtd_real, "fluxo_instalado": fluxo_inst,
+                "lux_real": lux_real, "pot_total": pot_tot, "dpi": dpi,
+                "conforme": conforme, "linhas": linhas, "colunas": colunas,
+                "dist_c": dist_c, "dist_parede_c": dist_c / 2,
+                "dist_l": dist_l, "dist_parede_l": dist_l / 2
             })
 
-        df_res = pd.DataFrame(resultados_lote)
-        
-        st.success("✅ Dimensionamento em lote concluído com sucesso!")
-        st.dataframe(df_res[["Ambiente", "Área (m²)", "Meta (lx)", "Real (lx)", "Luminárias", "Pot. Total (W)", "Conforme"]], use_container_width=True)
+        st.success("✅ Dimensionamento em lote processado com sucesso!")
 
-        dados_cliente = {"nome": "Projeto Residencial / Lote"}
+        dados_cliente = {"nome": cli_nome_lote}
         dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
         
-        docx_lote_bytes = gerar_docx_lote(dados_cliente, dados_prof, df_res, logo_file=logo_upload)
+        docx_lote_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_ambientes, logo_file=logo_upload)
 
         st.download_button(
-            label="📥 Baixar Relatório Consolidado em Word (.DOCX)",
+            label="📥 Baixar Relatório Completo em Lote (.DOCX)",
             data=docx_lote_bytes,
-            file_name="Relatorio_Luminotecnico_Lote.docx",
+            file_name="Relatorio_Luminotecnico_Lote_Completo.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
