@@ -67,15 +67,13 @@ class PDF(FPDF):
             text = str(text).replace(orig, sub)
         return text.encode('latin-1', 'replace').decode('latin-1')
 
-    def text_cell(self, w, h, txt, border=0, ln=1, align='', fill=False):
-        self.cell(w, h, self.sanitize(str(txt)), border=border, ln=ln, align=align, fill=fill)
-
 # --- FUNÇÃO DE GERAÇÃO DE PDF ---
 def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     pdf = PDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
+    # Inserção e espaçamento correto da Logo
     if logo_file is not None:
         logo_file.seek(0)
         ext = logo_file.name.split('.')[-1].lower()
@@ -84,26 +82,30 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
                 tmp_file.write(logo_file.read())
                 tmp_path = tmp_file.name
             try:
-                pdf.image(tmp_path, x=80, y=10, w=50)
-                pdf.ln(22)
+                # Posiciona a logo no centro
+                pdf.image(tmp_path, x=80, y=12, w=50)
+                # Move o cursor Y para baixo da imagem para não sobrepor o texto
+                pdf.set_y(40)
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
+    else:
+        pdf.set_y(15)
 
     pdf.set_font("Helvetica", "B", 14)
-    pdf.text_cell(0, 8, "RELATORIO DE DIMENSIONAMENTO LUMINOTECNICO", align="C")
+    pdf.cell(0, 8, pdf.sanitize("RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO"), ln=1, align="C")
     pdf.set_font("Helvetica", "I", 10)
-    pdf.text_cell(0, 5, "Projeto de Iluminacao Residencial / Comercial | Metodo dos Lumens", align="C")
+    pdf.cell(0, 5, pdf.sanitize("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens"), ln=1, align="C")
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "", 9)
-    pdf.text_cell(0, 5, f"Engenheiro Responsavel: {dados_prof['nome']} - {dados_prof['registro']}", align="C")
-    pdf.text_cell(0, 5, "Norma de Referencia: NBR ISO/CIE 8995-1 (Iluminacao de Ambientes de Trabalho)", align="C")
+    pdf.cell(0, 5, pdf.sanitize(f"Engenheiro Responsável: {dados_prof['nome']} - {dados_prof['registro']}"), ln=1, align="C")
+    pdf.cell(0, 5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), ln=1, align="C")
     pdf.ln(6)
 
     def criar_tabela_pdf(titulo, colunas, largura_cols, dados):
         pdf.set_font("Helvetica", "B", 11)
-        pdf.text_cell(0, 7, titulo)
+        pdf.cell(0, 7, pdf.sanitize(titulo), ln=1)
         pdf.set_font("Helvetica", "B", 9)
         pdf.set_fill_color(31, 78, 121)
         pdf.set_text_color(255, 255, 255)
@@ -125,55 +127,55 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 
     # 1. Identificação
     criar_tabela_pdf(
-        "1. Identificacao e Dados Geometricos do Ambiente",
-        ["Parametro", "Simbolo", "Valor", "Unidade"],
+        "1. Identificação e Dados Geométricos do Ambiente",
+        ["Parâmetro", "Símbolo", "Valor", "Unidade"],
         [70, 25, 35, 60],
         [
-            ["Nome / Identificacao do Ambiente", "-", d['nome'], "-"],
+            ["Nome / Identificação do Ambiente", "-", d['nome'], "-"],
             ["Comprimento do Recinto", "C", f"{d['comp']:.2f}", "m"],
             ["Largura do Recinto", "L", f"{d['larg']:.2f}", "m"],
-            ["Pe-Direito Total (Piso ao Teto)", "H", f"{d['pe_direito']:.2f}", "m"],
+            ["Pé-Direito Total (Piso ao Teto)", "H", f"{d['pe_direito']:.2f}", "m"],
             ["Altura do Plano de Trabalho", "hp", f"{d['hp']:.2f}", "m"],
-            ["Pendotamento / Descimento da Luminaria", "hp'", f"{d['hp_desc']:.2f}", "m"],
-            ["Area Total Calculada", "A", f"{d['area']:.2f}", "m2"],
-            ["Altura Util de Iluminacao", "hu", f"{d['hu']:.2f}", "m"]
+            ["Pendotamento / Descimento da Luminária", "hp'", f"{d['hp_desc']:.2f}", "m"],
+            ["Área Total Calculada", "A", f"{d['area']:.2f}", "m2"],
+            ["Altura Útil de Iluminação", "hu", f"{d['hu']:.2f}", "m"]
         ]
     )
 
     # 2. Parâmetros Luminotécnicos
     criar_tabela_pdf(
-        "2. Parametros Luminotecnicos Adotados",
-        ["Parametro Tecnico", "Simbolo", "Valor Adotado", "Observacoes / Norma"],
+        "2. Parâmetros Luminotécnicos Adotados",
+        ["Parâmetro Técnico", "Símbolo", "Valor Adotado", "Observações / Norma"],
         [60, 25, 35, 70],
         [
-            ["Iluminancia Requerida (Meta)", "Ereq", f"{d['lux_req']} lx", "NBR ISO/CIE 8995-1"],
-            ["Fluxo Luminoso da Luminaria", "Flampa", f"{d['fluxo']:,} lm".replace(",", "."), "Dado do fabricante"],
-            ["Potencia Unitaria da Luminaria", "Punit", f"{d['potencia']} W", "Consumo eletrico unitario"],
-            ["Indice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria do espaco"],
-            ["Fator de Utilizacao", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletancia padrao"],
-            ["Fator de Depreciacao / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", "Manutencao para ambiente"]
+            ["Iluminância Requerida (Meta)", "Ereq", f"{d['lux_req']} lx", "NBR ISO/CIE 8995-1"],
+            ["Fluxo Luminoso da Luminária", "Flampa", f"{d['fluxo']:,} lm".replace(",", "."), "Dado do fabricante"],
+            ["Potência Unitária da Luminária", "Punit", f"{d['potencia']} W", "Consumo elétrico unitário"],
+            ["Índice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria do espaço"],
+            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância padrão"],
+            ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", "Manutenção para ambiente"]
         ]
     )
 
     # 3. Resultados
     criar_tabela_pdf(
-        "3. Resultados do Dimensionamento e Iluminancia",
-        ["Item de Calculo", "Valor Calculado", "Valor Adotado / Real", "Unidade"],
+        "3. Resultados do Dimensionamento e Iluminância",
+        ["Item de Cálculo", "Valor Calculado", "Valor Adotado / Real", "Unidade"],
         [70, 40, 45, 35],
         [
-            ["Fluxo Luminoso Requerido (Teorico)", f"{d['fluxo_req']:.2f}", "-", "lm"],
-            ["Quantidade Minima de Luminarias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "unidades"],
+            ["Fluxo Luminoso Requerido (Teórico)", f"{d['fluxo_req']:.2f}", "-", "lm"],
+            ["Quantidade Mínima de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "unidades"],
             ["Fluxo Luminoso Real Instalado", "-", f"{d['fluxo_instalado']:,}".replace(",", "."), "lm"],
-            ["Iluminancia Real Alcancada", "-", f"{d['lux_real']:.2f}", "lx"],
-            ["Potencia Total Instalada", "-", f"{d['pot_total']:.2f}", "W"],
-            ["Densidade de Potencia Iluminada (DPI)", "-", f"{d['dpi']:.2f}", "W/m2"]
+            ["Iluminância Real Alcançada", "-", f"{d['lux_real']:.2f}", "lx"],
+            ["Potência Total Instalada", "-", f"{d['pot_total']:.2f}", "W"],
+            ["Densidade de Potência Iluminada (DPI)", "-", f"{d['dpi']:.2f}", "W/m2"]
         ]
     )
 
     # 4. Disposição Espacial
     criar_tabela_pdf(
-        "4. Disposicao Espacial e Layout de Instalacao",
-        ["Eixo de Instalacao", "Arranjo (Linhas x Colunas)", "Distancia entre Luminarias", "Distancia das Paredes"],
+        "4. Disposição Espacial e Layout de Instalação",
+        ["Eixo de Instalação", "Arranjo (Linhas x Colunas)", "Distância entre Luminárias", "Distância das Paredes"],
         [50, 50, 45, 45],
         [
             ["Eixo Longitudinal (Comprimento)", f"{d['linhas']} Linhas", f"{d['dist_c']:.2f} m", f"{d['dist_parede_c']:.2f} m"],
@@ -183,19 +185,18 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 
     # 5. Parecer Técnico
     pdf.set_font("Helvetica", "B", 11)
-    pdf.text_cell(0, 7, "5. Parecer Tecnico e Conformidade")
+    pdf.cell(0, 7, pdf.sanitize("5. Parecer Técnico e Conformidade"), ln=1)
     pdf.set_font("Helvetica", "", 9)
     
-    status_str = "CONFORME (Projeto aprovado e recomendado para execucao)." if d['conforme'] else "NAO CONFORME (Revisar fluxo luminoso ou quantidade)."
+    status_str = "CONFORME (Projeto aprovado e recomendado para execução)." if d['conforme'] else "NÃO CONFORME (Revisar fluxo luminoso ou quantidade)."
     
-    # Define a largura utilizável da página para evitar erro no multi_cell
     w_page = pdf.w - pdf.l_margin - pdf.r_margin
 
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Nivel de Iluminancia: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Eficiencia Energetica: A densidade de potencia instalada e de {d['dpi']:.2f} W/m2, estando dentro dos padroes de eficiencia energetica em LED."))
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Uniformidade Espacial: A distribuicao em matriz {d['linhas']} x {d['colunas']} com espacamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
     pdf.set_font("Helvetica", "B", 9)
-    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Status Final de Aprovacao: {status_str}"))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
 
     buffer = io.BytesIO()
     pdf_output = pdf.output()
