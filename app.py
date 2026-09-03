@@ -11,16 +11,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SISTEMA DE LOGIN E CONTROLE DE ACESSO ---
+# --- SISTEMA DE LOGIN E CONTROLE DE ACESSO COM TESTE GRÁTIS DE 5 DIAS ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
+    if "modo_teste_ativo" not in st.session_state:
+        st.session_state.modo_teste_ativo = False
+    if "data_inicio_teste" not in st.session_state:
+        st.session_state.data_inicio_teste = None
 
-    if not st.session_state.autenticado:
+    if not st.session_state.autenticado and not st.session_state.modo_teste_ativo:
         st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnica")
-        st.markdown("Por favor, faça login ou escolha um plano de acesso para continuar.")
+        st.markdown("Faça login com sua conta profissional, teste gratuitamente por 5 dias ou assine um plano.")
         
-        tab_login, tab_planos = st.tabs(["🔑 Fazer Login", "💳 Assinar / Planos"])
+        tab_login, tab_teste, tab_planos = st.tabs(["🔑 Fazer Login", "⏱️ Teste Grátis (5 Dias)", "💳 Assinar / Planos"])
         
         with tab_login:
             with st.form("form_login"):
@@ -33,11 +37,32 @@ def verificar_autenticacao():
                         st.session_state.autenticado = True
                         st.session_state.usuario_email = email_input
                         st.session_state.plano_ativo = "Acesso Vitalício / Mestre"
+                        st.session_state.permissao_relatorio = True
                         st.success("Login realizado com sucesso!")
                         st.rerun()
                     else:
                         st.error("E-mail ou senha incorretos.")
                         
+        with tab_teste:
+            st.markdown("### 🌟 Ative seu Teste Grátis de 5 Dias")
+            st.markdown("Tenha acesso completo aos **cálculos de luminárias** e ao **cadastro de clientes** por 5 dias (Emissão de relatórios em Word indisponível no modo de teste).")
+            
+            with st.form("form_teste_gratis"):
+                email_teste = st.text_input("Seu E-mail para cadastro rápido")
+                btn_ativar_teste = st.form_submit_button("Ativar Teste Grátis de 5 Dias")
+                
+                if btn_ativar_teste:
+                    if email_teste.strip() != "":
+                        st.session_state.modo_teste_ativo = True
+                        st.session_state.usuario_email = email_teste
+                        st.session_state.data_inicio_teste = datetime.date.today()
+                        st.session_state.plano_ativo = "Teste Grátis (5 Dias)"
+                        st.session_state.permissao_relatorio = False
+                        st.success("Teste grátis ativado com sucesso por 5 dias!")
+                        st.rerun()
+                    else:
+                        st.error("Por favor, informe um e-mail válido.")
+
         with tab_planos:
             st.markdown("### Escolha o seu plano de acesso profissional:")
             col_p1, col_p2 = st.columns(2)
@@ -46,19 +71,28 @@ def verificar_autenticacao():
                 st.markdown("#### 🌟 Plano Semestral")
                 st.markdown("**6 Meses de Acesso Completo**")
                 st.markdown("### R$ 69,00")
-                st.markdown("- Todos os cálculos luminotécnicos\n- Emissão de relatórios completos em Word\n- Suporte a atualizações")
+                st.markdown("- Todos os cálculos\n- Emissão de relatórios em Word\n- Cadastro de Clientes")
                 if st.button("Assinar Plano Semestral", use_container_width=True):
-                    st.info("Para liberar seu acesso imediato via PIX/Cartão, entre em contato com o suporte ou utilize o login mestre.")
+                    st.info("Entre em contato com o suporte ou utilize o login mestre para liberação imediata.")
                     
             with col_p2:
                 st.markdown("#### 🚀 Plano Anual")
                 st.markdown("**1 Ano de Acesso Completo**")
                 st.markdown("### R$ 99,00")
-                st.markdown("- **Melhor Custo-Benefício**\n- Todos os recursos liberados\n- Prioridade em novas atualizações")
+                st.markdown("- **Melhor Custo-Benefício**\n- Todos os recursos liberados\n- Suporte prioritário")
                 if st.button("Assinar Plano Anual", use_container_width=True):
-                    st.info("Para liberar seu acesso imediato via PIX/Cartão, entre em contato com o suporte ou utilize o login mestre.")
+                    st.info("Entre em contato com o suporte ou utilize o login mestre para liberação imediata.")
                     
         return False
+        
+    # Verificar expiração do teste grátis (5 dias)
+    if st.session_state.modo_teste_ativo and st.session_state.data_inicio_teste:
+        dias_decorridos = (datetime.date.today() - st.session_state.data_inicio_teste).days
+        if dias_decorridos > 5:
+            st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Por favor, faça a assinatura de um plano para continuar.")
+            st.session_state.modo_teste_ativo = False
+            st.rerun()
+
     return True
 
 if not verificar_autenticacao():
@@ -79,26 +113,27 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
+# --- BANCO DE DADOS DE CLIENTES ---
+if "banco_clientes" not in st.session_state:
+    st.session_state.banco_clientes = [
+        {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
+    ]
+
 # --- BANCO COMPLETO DE LUMINÁRIAS E PAINÉIS ---
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
         {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado Embutir", "Lumens": 1440, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Painel LED 24W Redondo Embutir", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
-        {"Fabricante": "Philips", "Modelo": "Luminária de Embutir 2x16W Tubular", "Lumens": 3200, "Potencia": 32.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Osram", "Modelo": "Luminária LED Estanque 36W", "Lumens": 3600, "Potencia": 36.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Taschibra", "Modelo": "Painel LED Slim 12W Quadrado", "Lumens": 960, "Potencia": 12.0, "Tipo": "Painel/Luminária"},
-        {"Fabricante": "Gaya", "Modelo": "Luminária Plafon LED 25W", "Lumens": 2000, "Potencia": 25.0, "Tipo": "Painel/Luminária"},
-        {"Fabricante": "Ledvance", "Modelo": "Downlight LED 18W Embutir", "Lumens": 1530, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
-        {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0, "Tipo": "Industrial"},
     ]
 
-# Banco específico para Fitas LED (Protegido para Usuários PRO)
+# Banco específico para Fitas LED (Acesso PRO)
 if "banco_fitas" not in st.session_state:
     st.session_state.banco_fitas = [
         {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20", "Lumens": 900, "Potencia": 10.0},
         {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
-        {"Fabricante": "Mundo LED", "Modelo": "Fita LED Profissional 18W/m COB", "Lumens": 1600, "Potencia": 18.0},
     ]
 
 # --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM WORD (DOCX) ---
@@ -339,6 +374,7 @@ st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuári
 
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
+    st.session_state.modo_teste_ativo = False
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -353,21 +389,46 @@ prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_c
 prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
 
 st.markdown("---")
-st.markdown("### 📋 1. Identificação do Cliente")
 
-col_cli1, col_cli2 = st.columns(2)
-with col_cli1:
-    cli_nome = st.text_input("Nome do Cliente", value="", key="cli_nome_input")
-with col_cli2:
-    cli_email = st.text_input("E-mail do Cliente", value="", key="cli_email_input")
+# --- MÓDULO DE CADASTRO DE CLIENTES ---
+st.markdown("### 📇 Cadastro e Seleção de Clientes")
+with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
+    with st.form("form_novo_cliente"):
+        col_nc1, col_nc2 = st.columns(2)
+        with col_nc1:
+            cad_nome_cli = st.text_input("Nome / Razão Social do Cliente")
+            cad_tel_cli = st.text_input("Telefone / WhatsApp")
+        with col_nc2:
+            cad_email_cli = st.text_input("E-mail do Cliente")
+            cad_cidade_cli = st.text_input("Cidade / Estado (Ex: São Gonçalo - RJ)")
+            
+        btn_salvar_cliente = st.form_submit_button("Salvar Cliente")
+        if btn_salvar_cliente:
+            if cad_nome_cli.strip() != "":
+                st.session_state.banco_clientes.append({
+                    "Nome": cad_nome_cli,
+                    "Email": cad_email_cli if cad_email_cli else "Não informado",
+                    "Telefone": cad_tel_cli if cad_tel_cli else "Não informado",
+                    "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
+                })
+                st.success(f"Cliente '{cad_nome_cli}' cadastrado com sucesso!")
+            else:
+                st.error("O nome do cliente é obrigatório.")
+
+# Seleção do Cliente para o Projeto Atual
+lista_nomes_clientes = [c["Nome"] for c in st.session_state.banco_clientes]
+cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
+
+# Recuperar dados do cliente selecionado
+cliente_dados_obj = next((c for c in st.session_state.banco_clientes if c["Nome"] == cliente_selecionado_nome), st.session_state.banco_clientes[0])
 
 st.markdown("---")
 
-# --- NAVEGAÇÃO POR ABAS (ÁREA DE FITAS LED RESTRITA PARA USUÁRIOS LOGADOS/PRO) ---
-aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (Acesso Exclusivo PRO)"])
+# --- NAVEGAÇÃO POR ABAS (ÁREA DE FITAS LED E CÁLCULO) ---
+aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (Acesso PRO)"])
 
 with aba_principal:
-    st.markdown("### 🛋️ Gerenciamento de Ambientes e Seleção de Luminárias")
+    st.markdown(f"### 🛋️ Ambientes para o Cliente: **{cliente_dados_obj['Nome']}**")
 
     with st.expander("⚙️ Cadastrar Nova Luminária no Banco"):
         with st.form("form_nova_lum"):
@@ -420,7 +481,6 @@ with aba_principal:
             with col_n2:
                 tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
-            # CAMPO PARA ALTERAR O LUX MANUALMENTE
             lux_padrao_norma = TABELA_NORMA[tipo_atividade]
             col_lux1, col_lux2 = st.columns(2)
             with col_lux1:
@@ -469,7 +529,6 @@ with aba_principal:
             with col_f2:
                 fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}")
 
-            # --- CÁLCULO TEÓRICO BASE ---
             area = comp * larg
             hu = pe_direito - hp - hp_desc
             k_indice = (comp * larg) / (hu * (comp + larg)) if hu > 0 else 1.0
@@ -482,7 +541,6 @@ with aba_principal:
             if qtd_min_sugerida < 1:
                 qtd_min_sugerida = 1
 
-            # --- OPÇÃO DE DIVIDIR AS LUMINÁRIAS EM COLUNAS E LINHAS MANUALMENTE ---
             st.markdown("##### 🎛️ Configuração do Arranjo (Linhas e Colunas)")
             col_arr1, col_arr2 = st.columns(2)
             with col_arr1:
@@ -493,31 +551,23 @@ with aba_principal:
             qtd_real = linhas_man * colunas_man
 
             if qtd_real < qtd_min_sugerida:
-                st.warning(f"⚠️ O arranjo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un). O ambiente pode ficar abaixo da norma.")
+                st.warning(f"⚠️ O arranjo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
 
             dist_c_entre = comp / colunas_man if colunas_man > 0 else comp
-            dist_c_parede = dist_c_entre / 2.0  # Afastamento até a parede
+            dist_c_parede = dist_c_entre / 2.0
             dist_l_entre = larg / linhas_man if linhas_man > 0 else larg
-            dist_l_parede = dist_l_entre / 2.0  # Afastamento até a parede
+            dist_l_parede = dist_l_entre / 2.0
 
             fluxo_instalado = qtd_real * fluxo_lampada
             pot_total = qtd_real * potencia_lampada
             
-            qtd_real_str = str(int(qtd_real))
-            unidade_medida_qtd = "un"
-            arranjo_str = f"{linhas_man} Linhas x {colunas_man} Colunas"
-            fluxo_unidade_rel = fluxo_lampada
-            pot_unidade_rel = potencia_lampada
-            unidade_pot_desc = "Consumo Unitário (W)"
-
             lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
             dpi = pot_total / area if area > 0 else 0
             variacao_fluxo_pct = ((fluxo_instalado - fluxo_req) / fluxo_req) * 100 if fluxo_req > 0 else 0
             conforme = lux_real >= lux_req
 
-            # --- RESULTADO E CONFERÊNCIA DE QUANTIDADE NA TELA ---
             st.success(f"✨ **Conferência de Quantidade:** **{int(qtd_real)} unidades** adotadas no arranjo ({area:.1f} m²).")
-            st.info(f"📏 **Espaçamentos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede (Metade):** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m | **Lux Real Alcançado:** {lux_real:.2f} lx")
+            st.info(f"📏 **Espaçamentos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede:** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m | **Lux Real:** {lux_real:.2f} lx")
 
             lista_calculos_ambientes.append({
                 "id": amb_atual["id"],
@@ -532,9 +582,9 @@ with aba_principal:
                 "k_indice": k_indice,
                 "lux_req": lux_req,
                 "fluxo_req": fluxo_req,
-                "fluxo_unidade_rel": fluxo_unidade_rel,
-                "pot_unidade_rel": pot_unidade_rel,
-                "unidade_pot_desc": unidade_pot_desc,
+                "fluxo_unidade_rel": fluxo_lampada,
+                "pot_unidade_rel": potencia_lampada,
+                "unidade_pot_desc": "Consumo Unitário (W)",
                 "fator_u": fator_u,
                 "fator_d": fator_d,
                 "desc_utilizacao": "Ambiente residencial / Padrão",
@@ -542,9 +592,9 @@ with aba_principal:
                 "modelo_lum": modelo_desc_relatorio,
                 "fluxo_instalado": fluxo_instalado,
                 "qtd_teorica": qtd_teorica,
-                "qtd_real_str": qtd_real_str,
-                "unidade_medida_qtd": unidade_medida_qtd,
-                "arranjo_str": arranjo_str,
+                "qtd_real_str": str(int(qtd_real)),
+                "unidade_medida_qtd": "un",
+                "arranjo_str": f"{linhas_man} Linhas x {colunas_man} Colunas",
                 "dist_c_entre": dist_c_entre,
                 "dist_c_parede": dist_c_parede,
                 "dist_l_entre": dist_l_entre,
@@ -559,7 +609,7 @@ with aba_principal:
 
 with aba_fitas:
     st.markdown("### ✨ Projeto de Fitas LED Lineares (Acesso Restrito / PRO)")
-    st.markdown("Esta seção é exclusiva para usuários autenticados calcularem a metragem linear de fitas LED por metro.")
+    st.markdown("Esta seção é exclusiva para contas PRO e assinantes.")
     
     col_fita_1, col_fita_2 = st.columns(2)
     with col_fita_1:
@@ -573,37 +623,35 @@ with aba_fitas:
         if "Personalizada" not in sel_fita_aba:
             idx_f = banco_fita_opcoes.index(sel_fita_aba)
             lm_metro = st.session_state.banco_fitas[idx_f]["Lumens"]
-            w_metro = st.session_state.banco_fitas[idx_f]["Potencia"]
         else:
             lm_metro = st.number_input("Fluxo por Metro (lm/m)", value=900.0, step=50.0, key="fita_lm_man")
-            w_metro = st.number_input("Potência por Metro (W/m)", value=10.0, step=1.0, key="fita_w_man")
 
-    metragem_calculada_fita = (fita_lux_req * (fita_comp * 1.0)) / lm_metro if lm_metro > 0 else 0
-    st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares** para o perímetro informado.")
+    metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
+    st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
 
 st.subheader("3. Emissão de Relatório Luminotécnico (Word)")
 
-if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
-    dados_cli_dict = {
-        "nome": cli_nome if cli_nome else "Cliente Geral",
-        "email": cli_email if cli_email else "Não informado"
-    }
-    dados_prof_dict = {
-        "nome": prof_nome if prof_nome else "Não informado",
-        "registro": prof_registro if prof_registro else "Não informado",
-        "celular": prof_celular if prof_celular else "Não informado",
-        "email": prof_email if prof_email else "Não informado"
-    }
-    
-    logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-    
-    arquivo_docx_bytes = gerar_docx_consolidado(dados_cli_dict, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-    
-    st.success("Relatório Luminotécnico gerado com sucesso!")
-    st.download_button(
-        label="📥 Baixar Relatório Luminotécnico (.docx)",
-        data=arquivo_docx_bytes,
-        file_name=f"Relatorio_Luminotecnico_{cli_nome.replace(' ', '_') if cli_nome else 'Projeto'}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True
-    )
+# VERIFICAÇÃO DE PERMISSÃO PARA O RELATÓRIO (BLOQUEADO NO TESTE GRÁTIS DE 5 DIAS)
+if st.session_state.get("modo_teste_ativo", False):
+    st.warning("🔒 **Recurso Bloqueado no Teste Grátis:** A emissão e o download do relatório em Word estão disponíveis apenas nos planos assinados ou na conta master. Você pode realizar todos os cálculos livremente durante os 5 dias de teste.")
+else:
+    if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
+        dados_prof_dict = {
+            "nome": prof_nome if prof_nome else "Não informado",
+            "registro": prof_registro if prof_registro else "Não informado",
+            "celular": prof_celular if prof_celular else "Não informado",
+            "email": prof_email if prof_email else "Não informado"
+        }
+        
+        logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
+        
+        arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+        
+        st.success("Relatório Luminotécnico gerado com sucesso!")
+        st.download_button(
+            label="📥 Baixar Relatório Luminotécnico (.docx)",
+            data=arquivo_docx_bytes,
+            file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
