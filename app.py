@@ -73,7 +73,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Inserção da Logo no canto esquerdo e menor
+    # Logo
     if logo_file is not None:
         logo_file.seek(0)
         ext = logo_file.name.split('.')[-1].lower()
@@ -197,16 +197,17 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     
     w_page = pdf.w - pdf.l_margin - pdf.r_margin
 
-    # Execuções dos multi_cell sem deixar vazar o retorno para o Streamlit
-    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
-    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
     pdf.set_font("Helvetica", "B", 8.5)
-    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
+    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
 
-    # Converte explicitamente a saída do FPDF2 para bytes
-    pdf_bytes = bytes(pdf.output())
-    return pdf_bytes
+    # SAÍDA SEGURA EM BYTES PARA EVITAR QUE O STREAMLIT INTERCEPTE O RETORNO
+    pdf_output = pdf.output()
+    if isinstance(pdf_output, str):
+        return pdf_output.encode('latin-1')
+    return bytes(pdf_output)
 
 # --- FUNÇÃO DE GERAÇÃO DE WORD (.DOCX) ---
 def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
@@ -477,13 +478,10 @@ with tab1:
     
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
-    # Geração dos arquivos
-    pdf_bytes = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
-    buffer_docx = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
-    
     col_dl1, col_dl2 = st.columns(2)
     
     with col_dl1:
+        pdf_bytes = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
         st.download_button(
             label="📄 Baixar Relatório em PDF",
             data=pdf_bytes,
@@ -493,6 +491,7 @@ with tab1:
         )
         
     with col_dl2:
+        buffer_docx = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
         st.download_button(
             label="📝 Baixar Relatório em Word (.DOCX)",
             data=buffer_docx,
