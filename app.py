@@ -16,7 +16,7 @@ if "usuarios_cadastrados" not in st.session_state:
     # Já deixamos o seu e-mail cadastrado com acesso vitalício/admin
     st.session_state.usuarios_cadastrados = {
         "jefkar27@gmail.com": {
-            "senha": "123", 
+            "senha": "255859", 
             "criacao": datetime.datetime.now() - datetime.timedelta(days=30), # Conta antiga (ativa)
             "tipo": "admin"
         }
@@ -33,7 +33,7 @@ def verificar_autenticacao():
         st.markdown("## 🔐 Área Restrita - Luminotécnica Profissional")
         st.markdown("Crie sua conta e ganhe **24 horas de teste gratuito**, ou faça login se já tiver cadastro.")
         
-        tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 14,90/mês)"])
+        tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 19,90/mês)"])
         
         # --- ABA 1: LOGIN ---
         with tab_login:
@@ -57,7 +57,7 @@ def verificar_autenticacao():
                             st.success("Login realizado com sucesso!")
                             st.rerun()
                         else:
-                            st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 14,90/mês.")
+                            st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 19,90/mês.")
                     else:
                         st.error("E-mail não encontrado. Crie sua conta na aba ao lado!")
 
@@ -93,12 +93,12 @@ def verificar_autenticacao():
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
             st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios em Word.")
-            st.info("💡 **Apenas R$ 14,90 / mês** — Cancele quando quiser.")
+            st.info("💡 **Apenas R$ 19,90 / mês** — Cancele quando quiser.")
             
             # Link oficial de pagamento do Mercado Pago atualizado
             link_mercado_pago = "https://mpago.la/2sbQvQ9"
             
-            st.link_button("💳 Assinar Agora por R$ 14,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
+            st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
             st.markdown("*(Assim que assinar, seu acesso é liberado permanentemente).*")
                     
         return False
