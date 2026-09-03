@@ -4,6 +4,9 @@ import io
 import math
 import json
 import os
+sqlite3_disponivel = True
+import sqlite3
+import hashlib
 from datetime import datetime
 
 # Importação segura do ReportLab
@@ -21,6 +24,58 @@ from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 
+# --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
+ARQUIVO_DB_USUARIOS = "usuarios_sistema.db"
+
+def inicializar_db_usuarios():
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            email TEXT PRIMARY KEY,
+            senha_hash TEXT NOT NULL,
+            nome TEXT,
+            is_pro INTEGER DEFAULT 0
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+inicializar_db_usuarios()
+
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+def cadastrar_usuario(email, senha, nome):
+    try:
+        conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO usuarios (email, senha_hash, nome, is_pro) VALUES (?, ?, ?, ?)",
+                       (email, hash_senha(senha), nome, 0))
+        conn.commit()
+        conn.close()
+        return True, "Cadastro realizado com sucesso!"
+    except sqlite3.IntegrityError:
+        return False, "Este e-mail já está cadastrado."
+
+def verificar_login(email, senha):
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute("SELECT senha_hash, nome, is_pro FROM usuarios WHERE email = ?", (email,))
+    resultado = cursor.fetchone()
+    conn.close()
+    
+    if resultado and resultado[0] == hash_senha(senha):
+        return True, resultado[1], bool(resultado[2])
+    return False, "", False
+
+def atualizar_status_pro(email, status_pro):
+    conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET is_pro = ? WHERE email = ?", (1 if status_pro else 0, email))
+    conn.commit()
+    conn.close()
+
 # --- BANCO DE DADOS DE LUMINÁRIAS (JSON LOCAL) ---
 ARQUIVO_BANCO_LUM = "banco_luminarias.json"
 
@@ -31,7 +86,6 @@ def carregar_banco_luminarias():
                 return json.load(f)
         except:
             pass
-    # Padrão inicial
     return [
         {"Fabricante": "Genérica", "Modelo": "Painel LED Embutir 18W", "Lumens": 1440, "Potencia": 18.0},
         {"Fabricante": "Philips", "Modelo": "Ledinaire Downlight 20W", "Lumens": 1800, "Potencia": 20.0},
@@ -44,6 +98,16 @@ def salvar_banco_luminarias(lista):
 
 if "banco_luminarias" not in st.session_state:
     st.session_state["banco_luminarias"] = carregar_banco_luminarias()
+
+# Gerenciamento de Sessão de Login
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+if "usuario_email" not in st.session_state:
+    st.session_state["usuario_email"] = ""
+if "usuario_nome" not in st.session_state:
+    st.session_state["usuario_nome"] = ""
+if "is_pro" not in st.session_state:
+    st.session_state["is_pro"] = False
 
 # --- AUXILIARES PARA FORMATAÇÃO DO WORD ---
 def set_cell_background(cell, fill_hex):
@@ -254,20 +318,74 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     return buffer.getvalue()
 
 # --- INTERFACE WEB STREAMLIT ---
-st.set_page_config(page_title="Sistema Luminotécnico", layout="wide")
+st.set_page_config(page_title="Sistema Luminotécnico SaaS", layout="wide")
 
-# Barra Lateral (Controle de Versão e Licenciamento)
-st.sidebar.header("🔑 Versão do Sistema")
-tipo_versao = st.sidebar.selectbox("Selecionar Versão", ["Versão Básica", "Versão PRO (Com Fitas LED & Spots)"])
-is_pro = tipo_versao == "Versão PRO (Com Fitas LED & Spots)"
+# --- BARRA LATERAL: AUTENTICAÇÃO E PLANOS ---
+st.sidebar.header("🔐 Portal do Cliente")
 
-if not is_pro:
-    st.sidebar.info("💡 Você está na **Versão Básica** (Múltiplos ambientes liberados, sem o Módulo de Fitas LED/Spots). Mude para **PRO** para liberar as fitas.")
+if not st.session_state["autenticado"]:
+    aba_login, aba_cadastro = st.sidebar.tabs(["Entrar", "Criar Conta"])
+    
+    with aba_login:
+        st.subheader("Acessar Sistema")
+        email_login = st.text_input("E-mail", key="email_l")
+        senha_login = st.text_input("Senha", type="password", key="senha_l")
+        if st.button("Entrar", use_container_width=True):
+            sucesso, nome_cad, status_pro_db = verificar_login(email_login, senha_login)
+            if sucesso:
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_email"] = email_login
+                st.session_state["usuario_nome"] = nome_cad
+                st.session_state["is_pro"] = status_pro_db
+                st.success("Login efetuado com sucesso!")
+                st.rerun()
+            else:
+                st.error("E-mail ou senha incorretos.")
+                
+    with aba_cadastro:
+        st.subheader("Novo Cadastro")
+        nome_cad_input = st.text_input("Nome Completo", key="nome_c")
+        email_cad_input = st.text_input("E-mail", key="email_c")
+        senha_cad_input = st.text_input("Senha", type="password", key="senha_c")
+        if st.button("Cadastrar", use_container_width=True):
+            if nome_cad_input and email_cad_input and senha_cad_input:
+                ok, msg = cadastrar_usuario(email_cad_input, senha_cad_input, nome_cad_input)
+                if ok:
+                    st.success(msg + " Faça login na aba 'Entrar'.")
+                else:
+                    st.error(msg)
+            else:
+                st.warning("Preencha todos os campos.")
+                
+    st.stop() # Interrompe a execução do app principal até que o usuário faça login
+
+# Se já estiver logado:
+st.sidebar.success(f"Olá, **{st.session_state['usuario_nome']}**!")
+plano_atual_str = "🚀 PRO (Completo)" if st.session_state["is_pro"] else "📌 Básico (Padrão)"
+st.sidebar.info(f"Plano Ativo: **{plano_atual_str}**")
+
+# Simulação de gateway de pagamento para liberar PRO
+if not st.session_state["is_pro"]:
+    if st.sidebar.button("💎 Ativar Versão PRO (Simular Pagamento PIX)", use_container_width=True):
+        atualizar_status_pro(st.session_state["usuario_email"], True)
+        st.session_state["is_pro"] = True
+        st.success("Plano PRO ativado com sucesso!")
+        st.rerun()
 else:
-    st.sidebar.success("🚀 **Versão PRO Ativa:** Recursos completos com dimensionamento de Fitas LED e Spots.")
+    if st.sidebar.button("🔄 Voltar para Plano Básico", use_container_width=True):
+        atualizar_status_pro(st.session_state["usuario_email"], False)
+        st.session_state["is_pro"] = False
+        st.rerun()
+
+if st.sidebar.button("🚪 Sair da Conta", use_container_width=True):
+    st.session_state["autenticado"] = False
+    st.session_state["usuario_email"] = ""
+    st.session_state["usuario_nome"] = ""
+    st.session_state["is_pro"] = False
+    st.rerun()
 
 # TÍTULO DINÂMICO
-if is_pro:
+if st.session_state["is_pro"]:
     st.title("⚡ Luminotécnica PRO")
 else:
     st.title("⚡ Sistema Luminotécnico - Versão Básica")
@@ -281,7 +399,6 @@ logo_upload = st.sidebar.file_uploader("Envie sua Logo (PNG/JPG)", type=["png", 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
 
-# AJUSTE: Categoria Profissional com opção "Personalizado"
 lista_cat_prof = [
     "Engenheiro(a) Eletricista", 
     "Engenheiro(a) Civil", 
@@ -446,7 +563,8 @@ for idx, tab in enumerate(tabs):
         spot_angulo = 38
         spot_diametro = 0.0
 
-        if is_pro:
+        # Verificação restrita da licença PRO para o Módulo de Fitas e Spots
+        if st.session_state["is_pro"]:
             st.markdown("#### 🔥 Módulo PRO: Fitas LED & Spots")
             col_pro1, col_pro2 = st.columns(2)
             with col_pro1:
@@ -460,6 +578,8 @@ for idx, tab in enumerate(tabs):
                 hu_calc_temp = max(pe_direito - hp - hp_desc, 0.1)
                 spot_diametro = 2 * hu_calc_temp * math.tan(math.radians(spot_angulo / 2.0))
                 st.metric("Diâmetro da Mancha de Luz", f"{spot_diametro:.2f} m")
+        else:
+            st.info("💡 **Módulo PRO (Fitas LED & Spots):** Disponível apenas para assinantes do Plano PRO. Ative na barra lateral para liberar.")
 
         area = comprimento * largura
         hu = max(pe_direito - hp - hp_desc, 0.1)
@@ -519,7 +639,7 @@ for idx, tab in enumerate(tabs):
             "dist_l": dist_l, "dist_parede_l": dist_parede_l,
             "modo_afastamento": modo_afastamento, "afastamento_fixo": afastamento_fixo_val,
             "razao_max": razao_max_input, "razao_atual": razao_atual, "espacamento_ok": espacamento_ok,
-            "usar_pro": is_pro, "fita_comprimento": fita_comprimento, "fita_pot_metro": fita_pot_metro,
+            "usar_pro": st.session_state["is_pro"], "fita_comprimento": fita_comprimento, "fita_pot_metro": fita_pot_metro,
             "fita_tensao": fita_tensao, "fita_pot_total": fita_pot_total, "fita_fonte_rec": fita_fonte_rec,
             "spot_angulo": spot_angulo, "spot_diametro": spot_diametro
         })
