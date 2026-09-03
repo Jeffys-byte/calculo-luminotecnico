@@ -19,24 +19,13 @@ from docx.oxml.ns import nsdecls, qn
 import mercadopago
 
 # --- CONFIGURAÇÕES GLOBAIS ---
-ARQUIVO_DB_USUARIOS = "usuarios_sistema.db"
+ARQUIVO_DB_USUARIOS = "/tmp/usuarios_sistema.db"
 EMAIL_DONO_MESTRE = "jbengrj@gmai.com"
 ACCESS_TOKEN_MP = "APP_USR-556244363968444-090314-235a12713b7c8a5fe8a8747b0e596775-3660992457"
 sdk = mercadopago.SDK(ACCESS_TOKEN_MP)
 
 # --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
 def inicializar_db_usuarios():
-    if os.path.exists(ARQUIVO_DB_USUARIOS):
-        try:
-            test_conn = sqlite3.connect(f"file:{ARQUIVO_DB_USUARIOS}?mode=ro", uri=True)
-            test_conn.execute("PRAGMA integrity_check;")
-            test_conn.close()
-        except sqlite3.OperationalError:
-            try:
-                os.remove(ARQUIVO_DB_USUARIOS)
-            except Exception:
-                pass
-
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     
