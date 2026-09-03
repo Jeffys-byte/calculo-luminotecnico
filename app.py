@@ -204,7 +204,7 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
     doc = docx.Document()
     
-    # Margens padrão de 2cm
+    # Margens padrão
     sections = doc.sections
     for section in sections:
         section.top_margin = Inches(0.8)
@@ -231,7 +231,7 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_sub.paragraph_format.space_after = Pt(6)
-    run_sub = p_sub.add_run(f"Projeto de Iluminação Residencial / Comercial | Método dos Lúmens")
+    run_sub = p_sub.add_run("Projeto de Iluminação Residencial / Comercial | Método dos Lúmens")
     run_sub.font.size = Pt(10)
     run_sub.italic = True
     run_sub.font.color.rgb = RGBColor(89, 89, 89)
@@ -247,13 +247,11 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
         tbl = doc.add_table(rows=1, cols=len(headers))
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
         
-        # Header
         hdr_cells = tbl.rows[0].cells
         for idx, h_text in enumerate(headers):
             hdr_cells[idx].text = h_text
         format_table_header(tbl.rows[0], col_widths)
 
-        # Rows
         for r_data in linhas:
             row_cells = tbl.add_row().cells
             for c_idx, val in enumerate(r_data):
@@ -415,7 +413,7 @@ with tab1:
     # --- CÁLCULOS TÉCNICOS COMPLETOS ---
     area = comprimento * largura
     hu = pe_direito - hp - hp_desc
-    hu = max(hu, 0.1) # Proteção contra divisão por zero
+    hu = max(hu, 0.1)
     
     k_indice = (comprimento * largura) / (hu * (comprimento + largura))
     fluxo_req_teorico = (iluminancia_req * area) / (fator_u * fator_d)
@@ -428,10 +426,9 @@ with tab1:
     dpi = pot_total / area if area > 0 else 0
     conforme = lux_real >= iluminancia_req
 
-    # Arranjo de matriz aproximado para a quantidade recomendada
-    # Divide a área tentando manter proporção das dimensões
+    # CORREÇÃO: Uso de round() nativo
     ratio = comprimento / largura if largura > 0 else 1
-    colunas = max(1, math.round(math.sqrt(qtd_real / ratio)))
+    colunas = max(1, round(math.sqrt(qtd_real / ratio)))
     linhas = max(1, math.ceil(qtd_real / colunas))
     
     dist_c = comprimento / linhas if linhas > 0 else 0
@@ -474,7 +471,6 @@ with tab1:
     
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
-    # Gerar os buffers para PDF e Word
     buffer_pdf = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
     buffer_docx = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
     
