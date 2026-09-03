@@ -16,9 +16,12 @@ if "usuarios_cadastrados" not in st.session_state:
     # Já deixamos o seu e-mail cadastrado com acesso vitalício/admin
     st.session_state.usuarios_cadastrados = {
         "jefkar27@gmail.com": {
-            "senha": "255859", 
+            "senha": "123", 
             "criacao": datetime.datetime.now() - datetime.timedelta(days=30), # Conta antiga (ativa)
-            "tipo": "admin"
+            "tipo": "admin",
+            "banco_clientes": [
+                {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
+            ]
         }
     }
 
@@ -80,11 +83,14 @@ def verificar_autenticacao():
                                 "senha": nova_senha,
                                 "criacao": datetime.datetime.now(),
                                 "tipo": "cliente",
-                                "assinante": False
+                                "assinante": False,
+                                "banco_clientes": [
+                                    {"Nome": "Cliente Exemplo", "Email": "exemplo@email.com", "Telefone": "(21) 98888-8888", "Cidade": "Rio de Janeiro - RJ"}
+                                ]
                             }
                             st.session_state.autenticado = True
                             st.session_state.usuario_email = novo_email
-                            st.success("Conta criada com sucesso! Seus teste de 24 horas começou.")
+                            st.success("Conta criada com sucesso! Seu teste de 24 horas começou.")
                             st.rerun()
                     else:
                         st.error("Preencha todos os campos para criar a conta.")
@@ -95,7 +101,7 @@ def verificar_autenticacao():
             st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios em Word.")
             st.info("💡 **Apenas R$ 19,90 / mês** — Cancele quando quiser.")
             
-            # Link oficial de pagamento do Mercado Pago atualizado
+            # Link oficial de pagamento do Mercado Pago
             link_mercado_pago = "https://mpago.la/2sbQvQ9"
             
             st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
@@ -107,6 +113,17 @@ def verificar_autenticacao():
 
 if not verificar_autenticacao():
     st.stop()
+
+# Recupera os clientes exclusivos do usuário logado atualmente
+email_atual = st.session_state.usuario_email
+if email_atual in st.session_state.usuarios_cadastrados:
+    if "banco_clientes" not in st.session_state.usuarios_cadastrados[email_atual]:
+        st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"] = [
+            {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
+        ]
+    banco_clientes_usuario = st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"]
+else:
+    banco_clientes_usuario = [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
 
 # --- TABELA DE NORMAS (NBR ISO/CIE 8995-1) ---
 TABELA_NORMA = {
@@ -122,12 +139,6 @@ TABELA_NORMA = {
     "Hospitais - Enfermarias": 100,
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
-
-# --- BANCO DE DADOS DE CLIENTES ---
-if "banco_clientes" not in st.session_state:
-    st.session_state.banco_clientes = [
-        {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
-    ]
 
 # --- BANCO DE LUMINÁRIAS ---
 if "banco_luminarias" not in st.session_state:
@@ -393,7 +404,7 @@ prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_em
 
 st.markdown("---")
 
-# --- MÓDULO DE CADASTRO DE CLIENTES ---
+# --- MÓDULO DE CADASTRO DE CLIENTES (PRIVATIVO POR USUÁRIO) ---
 st.markdown("### 📇 Cadastro e Seleção de Clientes")
 with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
     with st.form("form_novo_cliente"):
@@ -408,19 +419,22 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
         btn_salvar_cliente = st.form_submit_button("Salvar Cliente")
         if btn_salvar_cliente:
             if cad_nome_cli.strip() != "":
-                st.session_state.banco_clientes.append({
+                novo_cliente_obj = {
                     "Nome": cad_nome_cli,
                     "Email": cad_email_cli if cad_email_cli else "Não informado",
                     "Telefone": cad_tel_cli if cad_tel_cli else "Não informado",
                     "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
-                })
+                }
+                # Adiciona na lista privada do usuário logado
+                st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"].append(novo_cliente_obj)
                 st.success(f"Cliente '{cad_nome_cli}' cadastrado com sucesso!")
+                st.rerun()
             else:
                 st.error("O nome do cliente é obrigatório.")
 
-lista_nomes_clientes = [c["Nome"] for c in st.session_state.banco_clientes]
+lista_nomes_clientes = [c["Nome"] for c in banco_clientes_usuario]
 cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
-cliente_dados_obj = next((c for c in st.session_state.banco_clientes if c["Nome"] == cliente_selecionado_nome), st.session_state.banco_clientes[0])
+cliente_dados_obj = next((c for c in banco_clientes_usuario if c["Nome"] == cliente_selecionado_nome), banco_clientes_usuario[0])
 
 st.markdown("---")
 
