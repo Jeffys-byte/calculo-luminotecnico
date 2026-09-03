@@ -46,7 +46,7 @@ def verificar_autenticacao():
                 st.markdown("#### 🌟 Plano Semestral")
                 st.markdown("**6 Meses de Acesso Completo**")
                 st.markdown("### R$ 69,00")
-                st.markdown("- Todos os cálculos luminotécnicos\n- Emissão de laudos completos em Word\n- Suporte a atualizações")
+                st.markdown("- Todos os cálculos luminotécnicos\n- Emissão de relatórios completos em Word\n- Suporte a atualizações")
                 if st.button("Assinar Plano Semestral", use_container_width=True):
                     st.info("Para liberar seu acesso imediato via PIX/Cartão, entre em contato com o suporte ou utilize o login mestre.")
                     
@@ -81,8 +81,8 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- FUNÇÃO DE GERAÇÃO DO WORD (DOCX) NO FORMATO EXATO SOLICITADO ---
-def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
+# --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO ÚNICO EM WORD (DOCX) ---
+def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -104,7 +104,6 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
     style_normal.font.color.rgb = RGBColor(50, 50, 50)
 
     HEX_COR_PRIMARIA = "1A365D"    # Azul Marinho Escuro
-    HEX_COR_SECUNDARIA = "E2E8F0"  # Cinza Claro
     COR_TEXTO_TITULO = RGBColor(26, 54, 93)
 
     def set_cell_background(cell, hex_color):
@@ -125,30 +124,38 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
     data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
 
+    # Cabeçalho Geral do Relatório Consolidado
+    p_t = doc.add_paragraph()
+    r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO CONSOLIDADO")
+    r_t.bold = True
+    r_t.font.size = Pt(14)
+    r_t.font.color.rgb = COR_TEXTO_TITULO
+
+    p_sub = doc.add_paragraph()
+    p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente.get('nome', 'Cliente Geral')} | Método dos Lúmens\n")
+    p_sub.add_run(f"Responsável Técnico: {dados_profissional.get('nome', 'Não informado')} — Registro: {dados_profissional.get('registro', 'Não informado')} | Data de Emissão: {data_atual_str}\n")
+    p_sub.add_run(f"Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
+    p_sub.runs[0].font.size = Pt(9)
+    p_sub.runs[1].font.size = Pt(9)
+    p_sub.runs[2].font.size = Pt(9)
+
+    doc.add_paragraph()
+
+    # Loop por cada ambiente dentro do mesmo arquivo único de relatório
     for idx, amb in enumerate(lista_ambientes):
         if idx > 0:
             doc.add_page_break()
 
-        p_t = doc.add_paragraph()
-        r_t = p_t.add_run(f"RELATÓRIO DE DIMENSIONAMENTO LUMINOTÉCNICO\nAMBIENTE: {amb['nome'].upper()}")
-        r_t.bold = True
-        r_t.font.size = Pt(13)
-        r_t.font.color.rgb = COR_TEXTO_TITULO
-
-        p_sub = doc.add_paragraph()
-        p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente.get('nome', 'Cliente Geral')} | Método dos Lúmens\n")
-        p_sub.add_run(f"Responsável Técnico: {dados_profissional.get('nome', 'Não informado')} — Registro: {dados_profissional.get('registro', 'Não informado')} | Data de Emissão: {data_atual_str}\n")
-        p_sub.add_run(f"Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
-        p_sub.runs[0].font.size = Pt(9)
-        p_sub.runs[1].font.size = Pt(9)
-        p_sub.runs[2].font.size = Pt(9)
-
-        doc.add_paragraph()
+        p_amb = doc.add_paragraph()
+        r_amb = p_amb.add_run(f"AMBIENTE: {amb['nome'].upper()}")
+        r_amb.bold = True
+        r_amb.font.size = Pt(11.5)
+        r_amb.font.color.rgb = COR_TEXTO_TITULO
 
         # 1. Identificação e Dados Geométricos
         h1 = doc.add_heading(level=2)
         r_h1 = h1.add_run("1. Identificação e Dados Geométricos")
-        r_h1.font.size = Pt(11)
+        r_h1.font.size = Pt(10.5)
         r_h1.font.color.rgb = COR_TEXTO_TITULO
 
         t1 = doc.add_table(rows=10, cols=4)
@@ -197,7 +204,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         # 2. Parâmetros Luminotécnicos
         h2 = doc.add_heading(level=2)
         r_h2 = h2.add_run("2. Parâmetros Luminotécnicos")
-        r_h2.font.size = Pt(11)
+        r_h2.font.size = Pt(10.5)
         r_h2.font.color.rgb = COR_TEXTO_TITULO
 
         t2 = doc.add_table(rows=7, cols=4)
@@ -242,7 +249,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         # 3. Resultados do Dimensionamento
         h3 = doc.add_heading(level=2)
         r_h3 = h3.add_run("3. Resultados do Dimensionamento")
-        r_h3.font.size = Pt(11)
+        r_h3.font.size = Pt(10.5)
         r_h3.font.color.rgb = COR_TEXTO_TITULO
 
         t3 = doc.add_table(rows=13, cols=4)
@@ -294,7 +301,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         # 4. Parecer Técnico
         h4 = doc.add_heading(level=2)
         r_h4 = h4.add_run("4. Parecer Técnico")
-        r_h4.font.size = Pt(11)
+        r_h4.font.size = Pt(10.5)
         r_h4.font.color.rgb = COR_TEXTO_TITULO
 
         p_par = doc.add_paragraph()
@@ -339,7 +346,6 @@ with col_cli2:
 st.markdown("---")
 st.markdown("### 🛋️ 2. Gerenciamento de Ambientes, Painéis, Spots e Fitas LED")
 
-# Bancos de dados na Session State separados por categoria
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
         {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
@@ -402,7 +408,6 @@ for amb_atual in st.session_state.ambientes:
 
         st.markdown("##### 💡 Seleção da Fonte Luminosa (Painéis, Spots ou Fitas LED)")
         
-        # Filtro opcional por tipo para facilitar a busca
         filtro_cat = st.radio("Filtrar por tipo de equipamento:", ["Todos", "Painel/Luminária", "Spot", "Fita LED", "Industrial"], horizontal=True, key=f"filtro_{amb_atual['id']}")
         
         banco_filtrado = st.session_state.banco_luminarias
@@ -519,9 +524,9 @@ for amb_atual in st.session_state.ambientes:
         
         st.markdown("---")
 
-st.subheader("3. Emissão de Laudo Técnico Luminotécnico (Word)")
+st.subheader("3. Emissão de Relatório Luminotécnico (Word)")
 
-if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=True):
+if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
     dados_cli_dict = {
         "nome": cli_nome if cli_nome else "Cliente Geral",
         "email": cli_email if cli_email else "Não informado"
@@ -535,13 +540,13 @@ if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=T
     
     logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
     
-    arquivo_docx_bytes = gerar_docx_lote(dados_cli_dict, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+    arquivo_docx_bytes = gerar_docx_consolidado(dados_cli_dict, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
     
-    st.success("Laudo técnico gerado com sucesso!")
+    st.success("Relatório Luminotécnico gerado com sucesso!")
     st.download_button(
-        label="📥 Baixar Laudo Luminotécnico (.docx)",
+        label="📥 Baixar Relatório Luminotécnico (.docx)",
         data=arquivo_docx_bytes,
-        file_name=f"Laudo_Luminotecnico_{cli_nome.replace(' ', '_') if cli_nome else 'Projeto'}.docx",
+        file_name=f"Relatorio_Luminotecnico_{cli_nome.replace(' ', '_') if cli_nome else 'Projeto'}.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
