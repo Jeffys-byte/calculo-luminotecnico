@@ -80,7 +80,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
+    p_info.add_run(f"{dados_prof['titulo']} Responsável: {dados_prof['nome']} — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
     p_info.runs[0].bold = True
     run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410 (Instalações Elétricas de Baixa Tensão)")
     run_norma.italic = True
@@ -192,7 +192,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
 
     p2 = doc.add_paragraph()
     p2.add_run("• Eficiência Energética: ").bold = True
-    p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², em conformidade com as diretrizes de eficiência energética.")
+    p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², em conformidade com las diretrizes de eficiência energética.")
 
     p3 = doc.add_paragraph()
     p3.add_run("• Status Final de Aprovação: ").bold = True
@@ -247,8 +247,25 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
-prof_nome = st.sidebar.text_input("Nome do Profissional", "Eng. Responsável")
-prof_registro = st.sidebar.text_input("Registro (CREA / CFT)", "CREA/RJ 2026.000")
+
+# Seleção Dinâmica da Profissão / Categoria
+lista_profissoes = [
+    "Engenheiro(a) Eletricista",
+    "Engenheiro(a) Civil",
+    "Arquiteto(a) e Urbanista",
+    "Técnico(a) em Eletrotecnica",
+    "Designer de Interiores",
+    "Outro (Personalizado)"
+]
+escolha_profissao = st.sidebar.selectbox("Profissão / Cargo", lista_profissoes)
+
+if escolha_profissao == "Outro (Personalizado)":
+    titulo_prof = st.sidebar.text_input("Digite o Título Profissional", "Especialista em Iluminação")
+else:
+    titulo_prof = escolha_profissao
+
+prof_nome = st.sidebar.text_input("Nome do Profissional", "Jefferson Barcellos Borges")
+prof_registro = st.sidebar.text_input("Registro (CREA / CAU / CFT)", "CREA/RJ 2026.000")
 prof_contato = st.sidebar.text_input("Contato / E-mail", "contato@empresa.com.br")
 
 TABELA_NORMA = {
@@ -444,7 +461,7 @@ st.markdown("---")
 st.subheader("📥 Emissão do Relatório Consolidado")
 
 dados_cliente = {"nome": cli_nome}
-dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
+dados_prof = {"titulo": titulo_prof, "nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
 
 if is_pro:
     docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_file=logo_upload)
