@@ -254,18 +254,23 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     return buffer.getvalue()
 
 # --- INTERFACE WEB STREAMLIT ---
-st.set_page_config(page_title="Luminotécnica PRO", layout="wide")
+st.set_page_config(page_title="Sistema Luminotécnico", layout="wide")
 
-st.title("⚡ Luminotécnica PRO")
-st.write("Dimensionamento Luminotécnico Automatizado e Validação Normativa.")
-
-# Barra Lateral
+# Barra Lateral (Controle de Planos e Licenciamento)
 st.sidebar.header("🔑 Licenciamento do Sistema")
 tipo_licenca = st.sidebar.selectbox("Plano Ativo", ["Plano Básico (Gratuito/Demo)", "Plano PRO (Assinatura Anual)"])
 is_pro = tipo_licenca == "Plano PRO (Assinatura Anual)"
 
 if not is_pro:
-    st.sidebar.info("💡 Você está no **Plano Básico** (1 ambiente por projeto, sem Fitas LED/Spots). Assine o **PRO** para liberar todos os recursos.")
+    st.sidebar.info("💡 Você está no **Plano Básico** (limitado a 1 ambiente por projeto, sem Fitas LED/Spots). Assine o **PRO** para liberar todos os recursos.")
+
+# TÍTULO DINÂMICO (Muda de acordo com o plano selecionado)
+if is_pro:
+    st.title("⚡ Luminotécnica PRO")
+else:
+    st.title("⚡ Sistema Luminotécnico")
+
+st.write("Dimensionamento Luminotécnico Automatizado e Validação Normativa.")
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎨 Personalização da Marca")
@@ -288,7 +293,7 @@ TABELA_NORMA = {
 
 # --- SEÇÃO: BANCO DE DADOS DE LUMINÁRIAS ---
 with st.expander("📚 Banco de Dados de Fabricantes e Luminárias (Cadastrar / Consultar)", expanded=False):
-    st.write("Cadastre suas luminárias e marcas favoritas para utilizá-las rapidamente nos cálculos.")
+    st.write("Cadastre suas luminárias e marcas favoritas para selecioná-las rapidamente nos cálculos.")
     
     col_cad1, col_cad2 = st.columns(2)
     with col_cad1:
@@ -357,7 +362,7 @@ for idx, tab in enumerate(tabs):
 
         st.markdown("#### Geometria e Seleção de Luminária")
         
-        # Seleção a partir do Banco de Dados de Luminárias cadastrado
+        # Seleção automática do Banco de Dados com preenchimento instantâneo
         opcoes_banco_str = [f"{item['Fabricante']} - {item['Modelo']} ({item['Lumens']} lm | {item['Potencia']} W)" for item in st.session_state["banco_luminarias"]]
         opcoes_banco_str.append("⚙️ Inserir Dados Manuais (Personalizado)")
         
@@ -369,6 +374,8 @@ for idx, tab in enumerate(tabs):
             fluxo_lampada = lum_selecionada["Lumens"]
             potencia_lampada = lum_selecionada["Potencia"]
             modelo_desc_relatorio = f"{lum_selecionada['Fabricante']} - {lum_selecionada['Modelo']}"
+            
+            st.info(f"💡 **Luminária Selecionada:** {lum_selecionada['Fabricante']} {lum_selecionada['Modelo']} — **{fluxo_lampada} lm** | **{potencia_lampada} W** (Preenchido automaticamente).")
         else:
             fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=2000.0, step=100.0, key=f"flux_m_{amb_atual['id']}")
             potencia_lampada = st.number_input("Potência Unitária (W)", value=20.0, step=1.0, key=f"pot_m_{amb_atual['id']}")
@@ -403,7 +410,7 @@ for idx, tab in enumerate(tabs):
             if modo_afastamento == "Fixo Personalizado":
                 afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05, key=f"afas_val_{amb_atual['id']}")
 
-        # Variáveis PRO padrão caso não seja PRO
+        # Variáveis PRO padrão caso esteja no Plano Básico
         fita_comprimento = 0.0
         fita_pot_metro = 14.4
         fita_tensao = "12V"
