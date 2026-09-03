@@ -8,6 +8,7 @@ from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 import io
 import math
+from datetime import datetime
 
 # --- AUXILIARES PARA FORMATAÇÃO DO WORD ---
 def set_cell_background(cell, fill_hex):
@@ -57,6 +58,8 @@ def format_table_rows(table, col_widths=None):
 
 # --- FUNÇÃO DE GERAÇÃO DE RELATÓRIO POR AMBIENTE ---
 def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
+    data_emissao = datetime.now().strftime("%d/%m/%Y")
+
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_titulo.paragraph_format.space_before = Pt(12)
@@ -77,7 +80,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']}\n")
+    p_info.add_run(f"Engenheiro Responsável: {dados_prof['nome']} — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
     p_info.runs[0].bold = True
     run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410 (Instalações Elétricas de Baixa Tensão)")
     run_norma.italic = True
@@ -132,8 +135,8 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
             ["Fluxo Luminoso da Luminária", "Φlâmpada", f"{fluxo_fmt} lm", "Fabricante"],
             ["Potência Unitária da Luminária", "Punit", f"{d['potencia']:.1f} W", "Consumo (W)"],
             ["Índice do Recinto", "K", f"{d['k_indice']:.2f}", "Geometria (C × L) / [hu × (C + L)]"],
-            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância padrão"],
-            ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", "Manutenção limpa"]
+            ["Fator de Utilização", "u", f"{d['fator_u']:.2f} ({int(d['fator_u']*100)}%)", "Refletância do ambiente"],
+            ["Fator de Depreciação / Perdas", "d", f"{d['fator_d']:.2f} ({int(d['fator_d']*100)}%)", f"Manutenção: {d['desc_depreciacao']}"]
         ]
     )
 
@@ -160,7 +163,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
             [Inches(2.5), Inches(1.8), Inches(1.5), Inches(1.2)],
             [
                 ["Fita LED (Perímetro / Sanca)", f"{d['fita_comprimento']:.2f} m linear | {d['fita_pot_metro']} W/m", f"Potência Total: {d['fita_pot_total']:.1f} W", f"Fonte Recomendada: {d['fita_fonte_rec']:.1f} W ({d['fita_tensao']})"],
-                ["Queda de Tensão Fita LED", f"Trecho contínuo: {d['fita_comprimento']:.2f} m", f"Limite crítico: 5.0 m", f"{'OK (Sem queda excessiva)' if d['fita_comprimento'] <= 5 else 'ALERTA: Inserir nova injeção de 12V/24V'}"] ,
+                ["Queda de Tensão Fita LED", f"Trecho contínuo: {d['fita_comprimento']:.2f} m", f"Limite crítico: 5.0 m", f"{'OK (Sem queda excessiva)' if d['fita_comprimento'] <= 5 else 'ALERTA: Inserir nova injeção de 12V/24V'}"],
                 ["Spot de Destaque (Facho)", f"Abertura de feixe: {d['spot_angulo']}°", f"Diâmetro da mancha no piso: {d['spot_diametro']:.2f} m", f"Altura útil ref: {d['hu']:.2f} m"]
             ]
         )
@@ -312,8 +315,36 @@ for idx, tab in enumerate(tabs):
             iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50, key=f"lux_{amb_atual['id']}")
             fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=2000, step=100, key=f"flux_{amb_atual['id']}")
             potencia_lampada = st.number_input("Potência Unitária da Luminária (W)", value=20, step=1, key=f"pot_{amb_atual['id']}")
-            fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01, key=f"fu_{amb_atual['id']}")
-            fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05, key=f"fd_{amb_atual['id']}")
+            
+            # Guia Interativo/Seleção Auxiliada para Fatores de Utilização e Depreciação
+            with st.expander("ℹ️ Ajuda: Como escolher o Fator de Utilização (u) e Depreciação (d)?"):
+                st.markdown("""
+                * **Fator de Utilização ($u$ - 0.1 a 0.9):** Representa a eficiência luminosa com base nas cores das superfícies e geometria.
+                  * *Paredes e Tetos Claros (Branco/Bege):* Utilize valores entre **0.50 e 0.65**.
+                  * *Paredes e Tetos Médios/Escuros:* Utilize valores entre **0.30 e 0.45**.
+                * **Fator de Depreciação ($d$ - 0.5 a 0.95):** Considera a perda de fluxo por acúmulo de poeira e envelhecimento das lâmpadas.
+                  * *Ambientes limpos (Residências, Escritórios limpos):* **0.80 a 0.85** (Manutenção regular).
+                  * *Ambientes sujeitos a poeira/gordura (Cozinhas, Indústrias, Garagens):* **0.65 a 0.75**.
+                """)
+
+            fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01, key=f"fu_{amb_atual['id']}", help="Reflete a proporção de luz que atinge o plano de trabalho considerando as reflexões das paredes e teto.")
+            
+            opcoes_depreciacao = {
+                "Ambiente Limpo / Residencial (Manutenção Boa) - 0.80": 0.80,
+                "Ambiente Comercial / Escritório Padrão - 0.75": 0.75,
+                "Ambiente com Poeira Moderada / Cozinha - 0.70": 0.70,
+                "Ambiente Severo / Industrial - 0.60": 0.60,
+                "Personalizado (Manual)": "custom"
+            }
+            escolha_dep = st.selectbox("Fator de Depreciação / Manutenção (d)", list(opcoes_depreciacao.keys()), key=f"dep_sel_{amb_atual['id']}")
+            
+            if escolha_dep == "Personalizado (Manual)":
+                fator_d = st.number_input("Valor Personalizado de d", 0.50, 0.95, 0.80, step=0.05, key=f"fd_custom_{amb_atual['id']}")
+                desc_depreciacao = f"Personalizado ({fator_d:.2f})"
+            else:
+                fator_d = opcoes_depreciacao[escolha_dep]
+                desc_depreciacao = escolha_dep
+
             razao_max_input = st.slider("Razão Máx. de Espaçamento (Emax / hu)", 1.0, 2.0, 1.25, step=0.05, key=f"rz_{amb_atual['id']}")
             modo_afastamento = st.selectbox("Critério de Afastamento das Paredes", ["Proporcional (S/2)", "Fixo Personalizado"], key=f"afas_{amb_atual['id']}")
             afastamento_fixo_val = 0.50
@@ -395,6 +426,7 @@ for idx, tab in enumerate(tabs):
             "area": area, "hu": hu, "lux_req": iluminancia_req,
             "fluxo": fluxo_lampada, "potencia": potencia_lampada,
             "k_indice": k_indice, "fator_u": fator_u, "fator_d": fator_d,
+            "desc_depreciacao": desc_depreciacao,
             "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
             "qtd_real": qtd_real, "fluxo_instalado": fluxo_instalado,
             "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi,
@@ -424,7 +456,6 @@ if is_pro:
         use_container_width=True
     )
 else:
-    # Se for plano básico, gera apenas o arquivo do primeiro ambiente selecionado
     if len(lista_calculos_ambientes) > 0:
         docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, [lista_calculos_ambientes[0]], logo_file=logo_upload)
         st.download_button(
