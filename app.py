@@ -17,8 +17,8 @@ def verificar_autenticacao():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.markdown("## 🔐 Área Restrita - Acesso ao Sistema")
-        st.markdown("Faça login ou escolha um plano de acesso para continuar.")
+        st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnico")
+        st.markdown("Por favor, faça login ou escolha um plano de acesso para continuar.")
         
         tab_login, tab_planos = st.tabs(["🔑 Fazer Login", "💳 Assinar / Planos"])
         
@@ -26,10 +26,10 @@ def verificar_autenticacao():
             with st.form("form_login"):
                 email_input = st.text_input("E-mail")
                 senha_input = st.text_input("Senha", type="password")
-                btn_entrar = st.form_submit_button("Entrar")
+                btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    # Credencial mestre solicitada
+                    # Credenciais solicitadas
                     if email_input.strip() == "jefkar27@gmail.com" and senha_input.strip() == "255859":
                         st.session_state.autenticado = True
                         st.session_state.usuario_email = email_input
@@ -40,16 +40,16 @@ def verificar_autenticacao():
                         st.error("E-mail ou senha incorretos.")
                         
         with tab_planos:
-            st.markdown("### Escolha o seu plano de acesso:")
+            st.markdown("### Escolha o seu plano de acesso profissional:")
             col_p1, col_p2 = st.columns(2)
             
             with col_p1:
                 st.markdown("#### 🌟 Plano Semestral")
                 st.markdown("**6 Meses de Acesso Completo**")
                 st.markdown("### R$ 69,00")
-                st.markdown("- Todos os cálculos luminotécnicos\n- Emissão de laudos em Word (.docx)\n- Suporte a atualizações")
+                st.markdown("- Todos os cálculos luminotécnicos\n- Emissão de laudos completos em Word\n- Suporte a atualizações")
                 if st.button("Assinar Plano Semestral", use_container_width=True):
-                    st.info("Integração de pagamento simulada. Para liberar seu acesso imediato, entre em contato com o suporte ou utilize o login mestre.")
+                    st.info("Para liberar seu acesso imediato via PIX/Cartão, entre em contato com o suporte ou utilize o login mestre.")
                     
             with col_p2:
                 st.markdown("#### 🚀 Plano Anual")
@@ -57,7 +57,7 @@ def verificar_autenticacao():
                 st.markdown("### R$ 99,00")
                 st.markdown("- **Melhor Custo-Benefício**\n- Todos os recursos liberados\n- Prioridade em novas atualizações")
                 if st.button("Assinar Plano Anual", use_container_width=True):
-                    st.info("Integração de pagamento simulada. Para liberar seu acesso imediato, entre em contato com o suporte ou utilize o login mestre.")
+                    st.info("Para liberar seu acesso imediato via PIX/Cartão, entre em contato com o suporte ou utilize o login mestre.")
                     
         return False
     return True
@@ -83,20 +83,19 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- FUNÇÃO DE GERAÇÃO DO WORD (DOCX) ---
+# --- FUNÇÃO DE GERAÇÃO DO WORD (DOCX) PROFISSIONAL ---
 def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+    from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.oxml import parse_xml
     from docx.oxml.ns import nsdecls
 
     doc = Document()
     
     # Margens da página
-    sections = doc.sections
-    for section in sections:
+    for section in doc.sections:
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
@@ -108,7 +107,6 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
     style_normal.font.size = Pt(10)
     style_normal.font.color.rgb = RGBColor(50, 50, 50)
 
-    # Cores do tema
     HEX_COR_PRIMARIA = "1A365D"    # Azul Marinho Escuro
     HEX_COR_SECUNDARIA = "E2E8F0"  # Cinza Claro
     COR_TEXTO_TITULO = RGBColor(26, 54, 93)
@@ -117,12 +115,12 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         shading_xml = f'<w:shd {nsdecls("w")} w:fill="{hex_color}"/>'
         cell._tc.get_or_add_tcPr().append(parse_xml(shading_xml))
 
-    def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+    def set_cell_margins(cell, top=120, bottom=120, left=150, right=150):
         tcPr = cell._tc.get_or_add_tcPr()
         tcMar = parse_xml(f'<w:tcMar {nsdecls("w")}><w:top w:w="{top}" w:type="dxa"/><w:bottom w:w="{bottom}" w:type="dxa"/><w:left w:w="{left}" w:type="dxa"/><w:right w:w="{right}" w:type="dxa"/></w:tcMar>')
         tcPr.append(tcMar)
 
-    # Cabeçalho / Logo
+    # Cabeçalho / Logo se houver
     if logo_file:
         try:
             doc.add_picture(logo_file, width=Inches(1.8))
@@ -130,25 +128,25 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         except Exception:
             pass
 
-    # Título Principal
+    # Capa / Título Principal
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_titulo = p_titulo.add_run("LAUDO TÉCNICO LUMINOTÉCNICO")
     run_titulo.bold = True
-    run_titulo.font.size = Pt(16)
+    run_titulo.font.size = Pt(18)
     run_titulo.font.color.rgb = COR_TEXTO_TITULO
     
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_sub = p_sub.add_run("Projeto de Iluminação Conforme NBR 5413 / ISO 8995")
+    run_sub = p_sub.add_run("Memória de Cálculo e Projeto de Iluminação Baseado na NBR 5413 / ISO 8995")
     run_sub.font.size = Pt(11)
     run_sub.font.color.rgb = RGBColor(100, 100, 100)
     
     doc.add_paragraph()
 
-    # 1. Informações Gerais
+    # 1. Identificação Geral
     h1 = doc.add_heading(level=2)
-    run_h1 = h1.add_run("1. Identificação do Projeto e Partes")
+    run_h1 = h1.add_run("1. Identificação do Projeto e Partes Envolvidas")
     run_h1.font.color.rgb = COR_TEXTO_TITULO
     
     t_info = doc.add_table(rows=2, cols=2)
@@ -156,10 +154,9 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
     t_info.autofit = False
 
     col_widths = [Inches(3.25), Inches(3.25)]
-
     dados_tabela_info = [
-        [("Cliente:", f" {dados_cliente.get('nome', 'N/D')}"), ("E-mail:", f" {dados_cliente.get('email', 'N/D' )}")],
-        [("Profissional:", f" {dados_profissional.get('nome', 'N/D')}"), ("Contato:", f" Cel: {dados_profissional.get('celular', 'N/D')} | E-mail: {dados_profissional.get('email', 'N/D')}")]
+        [("Cliente:", f" {dados_cliente.get('nome', 'N/D')}"), ("E-mail do Cliente:", f" {dados_cliente.get('email', 'N/D')}")],
+        [("Profissional Responsável:", f" {dados_profissional.get('nome', 'N/D')}"), ("Registro / Contato:", f" CREA: {dados_profissional.get('registro', 'N/D')} | Cel: {dados_profissional.get('celular', 'N/D')}")]
     ]
 
     for row_idx, row_data in enumerate(dados_tabela_info):
@@ -167,7 +164,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
             cell = t_info.cell(row_idx, col_idx)
             cell.width = col_widths[col_idx]
             set_cell_background(cell, HEX_COR_SECUNDARIA if row_idx == 0 else "FFFFFF")
-            set_cell_margins(cell, top=120, bottom=120, left=150, right=150)
+            set_cell_margins(cell, top=140, bottom=140, left=150, right=150)
             
             p = cell.paragraphs[0]
             p.paragraph_format.space_after = Pt(0)
@@ -179,7 +176,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
     doc.add_paragraph()
 
-    # 2. Resumo Executivo dos Ambientes
+    # 2. Resumo Executivo Consolidado
     h2 = doc.add_heading(level=2)
     run_h2 = h2.add_run("2. Resumo Consolidado dos Ambientes")
     run_h2.font.color.rgb = COR_TEXTO_TITULO
@@ -191,7 +188,6 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
     larguras_res = [Inches(1.5), Inches(0.8), Inches(0.9), Inches(1.1), Inches(1.1), Inches(1.1)]
     cabecalhos_res = ["Ambiente", "Área (m²)", "Lux Req.", "Lux Real", "Qtd. Lâmp.", "Status"]
 
-    # Estiliza cabeçalho
     for col_idx, texto in enumerate(cabecalhos_res):
         cell = t_res.cell(0, col_idx)
         cell.width = larguras_res[col_idx]
@@ -204,7 +200,6 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         run.font.color.rgb = RGBColor(255, 255, 255)
         run.font.size = Pt(9)
 
-    # Preenche linhas
     for idx, amb in enumerate(lista_ambientes):
         row_cells = t_res.rows[idx + 1].cells
         dados_linha = [
@@ -233,7 +228,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
     doc.add_page_break()
 
-    # 3. Detalhamento por Ambiente
+    # 3. Detalhamento Técnico Completo por Ambiente
     h3 = doc.add_heading(level=2)
     run_h3 = h3.add_run("3. Memória de Cálculo Detalhada por Ambiente")
     run_h3.font.color.rgb = COR_TEXTO_TITULO
@@ -242,7 +237,7 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
         p_amb = doc.add_paragraph()
         r_amb = p_amb.add_run(f"3.{idx+1}. Ambiente: {amb['nome']}")
         r_amb.bold = True
-        r_amb.font.size = Pt(12)
+        r_amb.font.size = Pt(11.5)
         r_amb.font.color.rgb = COR_TEXTO_TITULO
 
         t_det = doc.add_table(rows=7, cols=2)
@@ -256,16 +251,16 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
             ("Luminária / Fonte", f"Modelo: {amb['modelo_lum']} | Fluxo Unitário: {amb['fluxo']} lm | Potência Unitária: {amb['potencia']} W"),
             ("Resultados de Iluminância", f"Iluminância Requerida: {amb['lux_req']:.0f} lx | Iluminância Obtida: {amb['lux_real']:.1f} lx"),
             ("Arranjo Físico Proposto", f"Quantidade de Luminárias: {amb['qtd_real']} unidades ({amb['linhas']} linhas x {amb['colunas']} colunas)"),
-            ("Carga e Eficiência Energética", f"Potência Total Instalada: {amb['pot_total']:.1f} W | Densidade de Potência: {amb['dpi']:.2f} W/m²")
+            ("Carga e Eficiência Energética", f"Potência Total Instalada: {amb['pot_total']:.1f} W | Densidade de Potência (DPI): {amb['dpi']:.2f} W/m²")
         ]
 
         for r_i, (chave, valor) in enumerate(detalhes_dados):
             c_label, c_val = t_det.cell(r_i, 0), t_det.cell(r_i, 1)
-            c_label.width, c_val.width = Inches(2.2), Inches(4.3)
+            c_label.width, c_val.width = Inches(2.3), Inches(4.2)
             set_cell_background(c_label, HEX_COR_SECUNDARIA)
             set_cell_background(c_val, "FFFFFF")
-            set_cell_margins(c_label, top=80, bottom=80, left=100, right=100)
-            set_cell_margins(c_val, top=80, bottom=80, left=100, right=100)
+            set_cell_margins(c_label, top=90, bottom=90, left=100, right=100)
+            set_cell_margins(c_val, top=90, bottom=90, left=100, right=100)
             
             p0 = c_label.paragraphs[0]
             p0.paragraph_format.space_after = Pt(0)
@@ -280,11 +275,11 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 
         doc.add_paragraph()
 
-    # Rodapé / Assinatura
+    # Bloco de Assinatura
     p_ass = doc.add_paragraph()
-    p_ass.paragraph_format.space_before = Pt(30)
-    r_ass = p_ass.add_run(f"__________________________________________________\n{dados_profissional.get('nome', 'Profissional Responsável')}\nRegistro: {dados_profissional.get('registro', 'N/D')}")
-    r_ass.font.size = Pt(9.5)
+    p_ass.paragraph_format.space_before = Pt(40)
+    r_ass = p_ass.add_run(f"__________________________________________________\n{dados_profissional.get('nome', 'Profissional Responsável')}\nRegistro CREA/CAU: {dados_profissional.get('registro', 'N/D')}\nContato: {dados_profissional.get('celular', 'N/D')} | {dados_profissional.get('email', 'N/D')}")
+    r_ass.font.size = Pt(9)
     p_ass.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     buffer = io.BytesIO()
@@ -296,17 +291,24 @@ def gerar_docx_lote(dados_cliente, dados_profissional, lista_ambientes, logo_fil
 st.title("💡 Sistema Avançado de Cálculo Luminotécnico & Laudos")
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')} ({st.session_state.get('plano_ativo', 'Plano Ativo')})")
 
-# Botão de Sair/Logout
+# Botão de Sair/Logout na Barra Lateral
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🏢 Configuração Inicial")
-logo_upload = st.sidebar.file_uploader("Logo da Empresa / Profissional (.png, .jpg)", type=["png", "jpg", "jpeg"])
+st.sidebar.markdown("### 🏢 Logotipo do Projeto")
+logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"])
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 👷 Identificação do Profissional")
+prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_nome_input")
+prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
+prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
+prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
 
 st.markdown("---")
-st.markdown("### 📋 1. Identificação do Cliente e Profissional")
+st.markdown("### 📋 1. Identificação do Cliente")
 
 col_cli1, col_cli2 = st.columns(2)
 with col_cli1:
@@ -314,25 +316,39 @@ with col_cli1:
 with col_cli2:
     cli_email = st.text_input("E-mail do Cliente", value="", key="cli_email_input")
 
-col_prof1, col_prof2, col_prof3, col_prof4 = st.columns(4)
-with col_prof1:
-    prof_nome = st.text_input("Nome do Profissional", value="", key="prof_nome_input")
-with col_prof2:
-    prof_registro = st.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
-with col_prof3:
-    prof_celular = st.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
-with col_prof4:
-    prof_email = st.text_input("E-mail do Profissional", value="", key="prof_email_input")
-
 st.markdown("---")
 st.markdown("### 🛋️ 2. Gerenciamento de Ambientes e Lâmpadas")
 
-# Banco de luminárias padrão
-banco_luminarias_usuario = [
-    {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0},
-    {"Fabricante": "Emalux", "Modelo": "Luminária Comercial 2x18W LED", "Lumens": 3200, "Potencia": 36.0},
-    {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0},
-]
+# Gerenciamento do Banco de Luminárias do Usuário no Session State
+if "banco_luminarias" not in st.session_state:
+    st.session_state.banco_luminarias = [
+        {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado", "Lumens": 1440, "Potencia": 18.0},
+        {"Fabricante": "Emalux", "Modelo": "Luminária Comercial 2x18W LED", "Lumens": 3200, "Potencia": 36.0},
+        {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0},
+    ]
+
+with st.expander("⚙️ Gerenciar / Cadastrar Novas Luminárias no Banco"):
+    with st.form("form_nova_lum"):
+        st.markdown("Adicione novos modelos ao seu banco de seleção rápida:")
+        col_fl1, col_fl2, col_fl3, col_fl4 = st.columns(4)
+        with col_fl1:
+            novo_fab = st.text_input("Fabricante", value="Marca X")
+        with col_fl2:
+            novo_mod = st.text_input("Modelo", value="Painel 30W")
+        with col_fl3:
+            novo_lum = st.number_input("Fluxo (lm)", value=2400.0, step=100.0)
+        with col_fl4:
+            nova_pot = st.number_input("Potência (W)", value=30.0, step=1.0)
+            
+        btn_salvar_lum = st.form_submit_button("Salvar Nova Luminária no Banco")
+        if btn_salvar_lum:
+            st.session_state.banco_luminarias.append({
+                "Fabricante": novo_fab,
+                "Modelo": novo_mod,
+                "Lumens": novo_lum,
+                "Potencia": nova_pot
+            })
+            st.success(f"Luminária {novo_fab} - {novo_mod} adicionada com sucesso!")
 
 if "ambientes" not in st.session_state:
     st.session_state.ambientes = [{"id": 1, "nome": "Sala de Estar Principal"}]
@@ -361,14 +377,14 @@ for amb_atual in st.session_state.ambientes:
             tipo_atividade = st.selectbox("Atividade / Norma (NBR 5413)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
         st.markdown("##### 💡 Fonte Luminosa")
-        opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_luminarias_usuario]
-        opcoes_banco_str.append("⚙️ Inserir Manual")
+        opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in st.session_state.banco_luminarias]
+        opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
         
         escolha_banco = st.selectbox("Selecionar Luminária", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
 
-        if escolha_banco != "⚙️ Inserir Manual":
+        if escolha_banco != "⚙️ Inserir Manual / Personalizado":
             idx_escolhido = opcoes_banco_str.index(escolha_banco)
-            lum_sel = banco_luminarias_usuario[idx_escolhido]
+            lum_sel = st.session_state.banco_luminarias[idx_escolhido]
             fluxo_lampada, potencia_lampada = lum_sel["Lumens"], lum_sel["Potencia"]
             modelo_desc_relatorio = f"{lum_sel['Fabricante']} - {lum_sel['Modelo']}"
         else:
@@ -448,25 +464,25 @@ for amb_atual in st.session_state.ambientes:
         
         st.markdown("---")
 
-st.subheader("3. Emissão de Laudo Técnico (Word)")
+st.subheader("3. Emissão de Laudo Técnico Profissional (Word)")
 
-if st.button("📄 Gerar Relatório Completo em DOCX", use_container_width=True):
+if st.button("📄 Gerar Laudo Técnico Completo em DOCX", use_container_width=True):
     dados_cli_dict = {
         "nome": cli_nome if cli_nome else "Cliente Não Informado",
         "email": cli_email if cli_email else "Não informado"
     }
     dados_prof_dict = {
-        "nome": prof_nome,
-        "registro": prof_registro,
-        "celular": prof_celular,
-        "email": prof_email
+        "nome": prof_nome if prof_nome else "Profissional Não Informado",
+        "registro": prof_registro if prof_registro else "Não informado",
+        "celular": prof_celular if prof_celular else "Não informado",
+        "email": prof_email if prof_email else "Não informado"
     }
     
     logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
     
     arquivo_docx_bytes = gerar_docx_lote(dados_cli_dict, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
     
-    st.success("Relatório gerado com sucesso!")
+    st.success("Laudo técnico gerado com sucesso!")
     st.download_button(
         label="📥 Baixar Laudo Luminotécnico (.docx)",
         data=arquivo_docx_bytes,
