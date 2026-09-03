@@ -2,74 +2,102 @@ import streamlit as st
 import docx
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from fpdf import FPDF
 import io
+import tempfile
+import os
 
-# --- FUNÇÃO DE GERAÇÃO DO DOCUMENTO EM MEMÓRIA ---
-def gerar_documento_docx(nome_ambiente, comprimento, largura, pe_direito, iluminancia_requerida, fluxo_lampada, potencia_lampada, logo_file=None):
-    doc = docx.Document()
+# --- FUNÇÃO DE GERAÇÃO DE PDF NATIVO (FPDF2) ---
+def gerar_pdf(dados_cliente, dados_prof, dados_ambiente, logo_file=None):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Se o usuário enviou uma logo, insere no topo do documento
+    # Inserção da Logo se enviada
     if logo_file is not None:
-        p_logo = doc.add_paragraph()
-        p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        # Reseta o ponteiro do arquivo enviado para garantir a leitura correta
         logo_file.seek(0)
-        # Adiciona a imagem com largura ajustada para 2 polegadas
-        p_logo.add_run().add_picture(logo_file, width=Inches(2.0))
-        doc.add_paragraph()  # Linha em branco para espaçamento
+        ext = logo_file.name.split('.')[-1].lower()
+        if ext in ['png', 'jpg', 'jpeg']:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp_file:
+                tmp_file.write(logo_file.read())
+                tmp_path = tmp_file.name
+            try:
+                pdf.image(tmp_path, x=80, y=10, w=50)
+                pdf.ln(25)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
-    # Título
-    p_titulo = doc.add_paragraph()
-    run_titulo = p_titulo.add_run(f"MEMORIAL DE CÁLCULO LUMINOTÉCNICO\n{nome_ambiente.upper()}")
-    run_titulo.bold = True
-    run_titulo.font.size = Pt(16)
-    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Cabeçalho do Documento
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "MEMORIAL DE CÁLCULO LUMINOTÉCNICO", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, "Em conformidade com a NBR ISO/CIE 8995-1", ln=True, align="C")
+    pdf.ln(8)
     
-    # Cálculos
-    area = comprimento * largura
-    altura_util = pe_direito - 0.85
-    k_indice = area / (altura_util * (comprimento + largura)) if altura_util > 0 else 0
-    fator_utilizacao = 0.55
-    fator_perdas = 0.80
+    # Bloco: Identificação das Partes
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "1. Identificação do Projeto", ln=True)
+    pdf.set_font("Helvetica", "", 10)
     
-    fluxo_total = (iluminancia_requerida * area) / (fator_utilizacao * fator_perdas)
-    qtd_luminarias = int(-(-fluxo_total // fluxo_lampada)) if fluxo_lampada > 0 else 0
-    potencia_total = qtd_luminarias * potencia_lampada
-    densidade_potencia = potencia_total / area if area > 0 else 0
+    pdf.cell(0, 6, f"Cliente / Empreendimento: {dados_cliente['nome']}", ln=True)
+    if dados_cliente['doc']:
+        pdf.cell(0, 6, f"CPF/CNPJ: {dados_cliente['doc']}", ln=True)
+    if dados_cliente['endereco']:
+        pdf.cell(0, 6, f"Endereço: {dados_cliente['endereco']}", ln=True)
+        
+    pdf.ln(3)
+    pdf.cell(0, 6, f"Responsável Técnico: {dados_prof['nome']}", ln=True)
+    pdf.cell(0, 6, f"Registro (CREA/CFT): {dados_prof['registro']}", ln=True)
+    if dados_prof['contato']:
+        pdf.cell(0, 6, f"Contato/E-mail: {dados_prof['contato']}", ln=True)
+    pdf.ln(6)
+
+    # Bloco: Dados do Ambiente
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, f"2. Dados do Recinto: {dados_ambiente['nome']}", ln=True)
+    pdf.set_font("Helvetica", "", 10)
     
-    # Seção de Dados
-    doc.add_heading("1. Dados do Recinto e Iluminação", level=1)
-    doc.add_paragraph(f"• Comprimento: {comprimento} m")
-    doc.add_paragraph(f"• Largura: {largura} m")
-    doc.add_paragraph(f"• Pé-Direito: {pe_direito} m")
-    doc.add_paragraph(f"• Área Total: {area:.2f} m²")
-    doc.add_paragraph(f"• Iluminância Alvo (NBR ISO/CIE 8995-1): {iluminancia_requerida} lx")
+    pdf.cell(0, 6, f"• Dimensões: {dados_ambiente['comprimento']}m (C) x {dados_ambiente['largura']}m (L) x {dados_ambiente['pe_direito']}m (H)", ln=True)
+    pdf.cell(0, 6, f"• Área Útil Total: {dados_ambiente['area']:.2f} m²", ln=True)
+    pdf.cell(0, 6, f"• Atividade: {dados_ambiente['atividade']}", ln=True)
+    pdf.cell(0, 6, f"• Iluminância Alvo Requerida (NBR 8995-1): {dados_ambiente['lux_req']} lx", ln=True)
+    pdf.ln(6)
+
+    # Bloco: Resultados
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "3. Dimensionamento e Resultados", ln=True)
+    pdf.set_font("Helvetica", "", 10)
     
-    # Seção de Resultados
-    doc.add_heading("2. Resultados do Dimensionamento", level=1)
-    doc.add_paragraph(f"• Índice do Recinto (K): {k_indice:.2f}")
-    doc.add_paragraph(f"• Quantidade de Luminárias Requeridas: {qtd_luminarias} un")
-    doc.add_paragraph(f"• Potência Instalada Total: {potencia_total} W")
-    doc.add_paragraph(f"• Densidade de Potência: {densidade_potencia:.2f} W/m²")
-    
-    # Salva o arquivo Word em um buffer de memória
+    pdf.cell(0, 6, f"• Índice do Recinto (K): {dados_ambiente['k_indice']:.2f}", ln=True)
+    pdf.cell(0, 6, f"• Quantidade de Luminárias Necessárias: {dados_ambiente['qtd_lum']} un", ln=True)
+    pdf.cell(0, 6, f"• Potência Instalada Total: {dados_ambiente['pot_total']:.1f} W", ln=True)
+    pdf.cell(0, 6, f"• Densidade de Potência: {dados_ambiente['densidade']:.2f} W/m²", ln=True)
+    pdf.ln(10)
+
+    # Retorna o PDF gerado em memória
     buffer = io.BytesIO()
-    doc.save(buffer)
+    pdf_output = pdf.output()
+    buffer.write(pdf_output)
     buffer.seek(0)
     return buffer
 
+
 # --- INTERFACE WEB STREAMLIT ---
-st.set_page_config(page_title="Cálculo Luminotécnico NBR 8995-1", layout="wide")
+st.set_page_config(page_title="Luminotécnica NBR 8995-1", layout="wide")
 
-st.title("⚡ Gerador de Memorial Luminotécnico")
-st.write("Dimensionamento baseado na NBR ISO/CIE 8995-1 com exportação de relatórios.")
+st.title("⚡ Sistema Luminotécnica")
+st.write("Dimensionamento Profissional e Gerador de Memoriais de Cálculo.")
 
-# Campo para o cliente anexar a própria logotipo
+# Sidebar - Dados do Profissional e Logo
 st.sidebar.header("🎨 Personalização da Marca")
-logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG, JPG)", type=["png", "jpg", "jpeg"])
+logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)", type=["png", "jpg", "jpeg"])
 
-if logo_upload is not None:
-    st.sidebar.image(logo_upload, caption="Pré-visualização da Logo", use_container_width=True)
+st.sidebar.markdown("---")
+st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
+prof_nome = st.sidebar.text_input("Nome do Profissional", "Jefferson Borges")
+prof_registro = st.sidebar.text_input("CREA / CFT", "Engenheiro Eletricista")
+prof_contato = st.sidebar.text_input("Telefone / E-mail", "contato@empresa.com")
 
 TABELA_NORMA = {
     "Escritórios - Escrever, digitar, ler, processar dados": 500,
@@ -87,7 +115,14 @@ TABELA_NORMA = {
 tab1, tab2 = st.tabs(["📐 Dimensionamento Único", "📋 Gerenciamento em Lote"])
 
 with tab1:
-    st.subheader("Entrada de Dados do Ambiente")
+    st.subheader("1. Dados do Cliente")
+    col_c1, col_c2, col_c3 = st.columns(3)
+    cli_nome = col_c1.text_input("Cliente / Nome da Obra", "Hotel Xavier")
+    cli_doc = col_c2.text_input("CPF / CNPJ (Opcional)", "")
+    cli_end = col_c3.text_input("Endereço (Opcional)", "Barra Longa / MG")
+
+    st.markdown("---")
+    st.subheader("2. Entrada de Dados do Ambiente")
     col_a, col_b = st.columns(2)
     
     with col_a:
@@ -108,7 +143,7 @@ with tab1:
         fator_perdas = st.slider("Fator de Perdas/Manutenção (d)", 0.50, 0.95, 0.80, step=0.05)
 
     st.markdown("---")
-    st.subheader("📊 Pré-visualização do Cálculo")
+    st.subheader("📊 Resultados do Cálculo")
     
     area = comprimento * largura
     altura_util = pe_direito - 0.85
@@ -126,65 +161,24 @@ with tab1:
 
     st.markdown("---")
     
-    # Geração do arquivo em memória para download (passando a logo se existir)
-    buffer_doc = gerar_documento_docx(
-        nome_ambiente=nome_ambiente,
-        comprimento=comprimento,
-        largura=largura,
-        pe_direito=pe_direito,
-        iluminancia_requerida=iluminancia,
-        fluxo_lampada=fluxo,
-        potencia_lampada=potencia,
-        logo_file=logo_upload
-    )
+    # Organização das estruturas de dados
+    dados_cliente = {"nome": cli_nome, "doc": cli_doc, "endereco": cli_end}
+    dados_prof = {"nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
+    dados_ambiente = {
+        "nome": nome_ambiente, "comprimento": comprimento, "largura": largura,
+        "pe_direito": pe_direito, "area": area, "atividade": tipo_atividade,
+        "lux_req": iluminancia, "k_indice": k_indice, "qtd_lum": qtd_luminarias,
+        "pot_total": potencia_total, "densidade": densidade_potencia
+    }
     
+    # Geração do arquivo PDF em memória
+    buffer_pdf = gerar_pdf(dados_cliente, dados_prof, dados_ambiente, logo_file=logo_upload)
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
     st.download_button(
-        label="📥 Baixar Memorial em Word (.DOCX)",
-        data=buffer_doc,
-        file_name=f"Memorial_Luminotecnico_{nome_sanitizado}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        label="📄 Baixar Memorial de Cálculo em PDF",
+        data=buffer_pdf,
+        file_name=f"Memorial_Luminotecnico_{nome_sanitizado}.pdf",
+        mime="application/pdf",
         use_container_width=True
     )
-
-with tab2:
-    st.subheader("Geração de Múltiplos Memoriais")
-    if "ambientes" not in st.session_state:
-        st.session_state.ambientes = []
-
-    with st.form("form_lote"):
-        c1, c2, c3, c4 = st.columns(4)
-        n = c1.text_input("Ambiente", "Corredor Principal")
-        comp = c2.number_input("Comp. (m)", value=12.0)
-        larg = c3.number_input("Larg. (m)", value=2.0)
-        lux = c4.number_input("Lux (lx)", value=150)
-        
-        adicionar = st.form_submit_button("➕ Adicionar à Lista")
-        if adicionar:
-            st.session_state.ambientes.append({
-                "nome": n, "comprimento": comp, "largura": larg, "pe_direito": 3.0,
-                "iluminancia": lux, "fluxo": 3200, "potencia": 32
-            })
-
-    if st.session_state.ambientes:
-        st.table(st.session_state.ambientes)
-        
-        for idx, item in enumerate(st.session_state.ambientes):
-            buf = gerar_documento_docx(
-                nome_ambiente=item["nome"],
-                comprimento=item["comprimento"],
-                largura=item["largura"],
-                pe_direito=item["pe_direito"],
-                iluminancia_requerida=item["iluminancia"],
-                fluxo_lampada=item["fluxo"],
-                potencia_lampada=item["potencia"],
-                logo_file=logo_upload
-            )
-            st.download_button(
-                label=f"📥 Baixar Memorial: {item['nome']} (.DOCX)",
-                data=buf,
-                file_name=f"Memorial_{item['nome'].replace(' ', '_')}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key=f"btn_lote_{idx}"
-            )
