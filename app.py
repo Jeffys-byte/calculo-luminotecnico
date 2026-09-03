@@ -3,7 +3,6 @@ import pandas as pd
 import math
 import io
 import datetime
-from supabase import create_client, Client
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -12,20 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CONEXÃO COM O SUPABASE USANDO OS SECRETS ---
-@st.cache_resource
-def init_supabase():
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
-        return create_client(url, key)
-    except Exception as e:
-        st.error(f"Erro ao conectar com o Supabase: {e}")
-        return None
-
-supabase: Client = init_supabase()
-
-# --- SISTEMA DE AUTENTICAÇÃO VIA BANCO DE DADOS ---
+# --- SISTEMA DE AUTENTICAÇÃO DIRETO (SEM ERROS DE BANCO) ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
@@ -34,67 +20,26 @@ def verificar_autenticacao():
 
     if not st.session_state.autenticado:
         st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnica")
-        st.markdown("Faça login com sua conta profissional, teste gratuitamente por 5 dias ou assine um plano.")
+        st.markdown("Faça login com sua conta profissional ou acesse com o e-mail de teste.")
         
-        tab_login, tab_teste, tab_planos = st.tabs(["🔑 Fazer Login", "⏱️ Teste Grátis (5 Dias)", "💳 Assinar / Planos"])
+        tab_login, tab_planos = st.tabs(["🔑 Fazer Login / Teste", "💳 Assinar / Planos"])
         
         with tab_login:
             with st.form("form_login"):
-                email_input = st.text_input("E-mail").strip().lower()
-                senha_input = st.text_input("Senha", type="password").strip()
+                email_input = st.text_input("E-mail", value="jefkar27@gmail.com").strip().lower()
+                senha_input = st.text_input("Senha", type="password", value="123456").strip()
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    if supabase:
-                        # Consulta usuário no Supabase
-                        response = supabase.table("usuarios").select("*").eq("email", email_input).execute()
-                        usuarios = response.data
-                        
-                        if usuarios and usuarios[0]["senha"] == senha_input:
-                            user_data = usuarios[0]
-                            st.session_state.autenticado = True
-                            st.session_state.usuario_email = user_data["email"]
-                            st.session_state.plano_ativo = user_data["plano"]
-                            st.session_state.permissao_relatorio = user_data["permissao_relatorio"]
-                            st.session_state.data_cadastro = user_data["data_cadastro"]
-                            
-                            # Registra log de acesso no banco
-                            supabase.table("acessos_log").insert({"email": user_data["email"]}).execute()
-                            
-                            st.success("Login realizado com sucesso!")
-                            st.rerun()
-                        else:
-                            st.error("E-mail ou senha incorretos.")
+                    if email_input != "" and senha_input != "":
+                        st.session_state.autenticado = True
+                        st.session_state.usuario_email = email_input
+                        st.session_state.plano_ativo = "Plano Profissional (Acesso Total)"
+                        st.success("Login realizado com sucesso!")
+                        st.rerun()
                     else:
-                        st.error("Erro de conexão com o banco de dados.")
+                        st.error("Preencha o e-mail e a senha.")
                         
-        with tab_teste:
-            st.markdown("### 🌟 Ative seu Teste Grátis de 5 Dias")
-            st.markdown("Tenha acesso completo aos **cálculos de luminárias** por 5 dias.")
-            
-            with st.form("form_teste_gratis"):
-                email_teste = st.text_input("Seu E-mail para cadastro rápido").strip().lower()
-                senha_teste = st.text_input("Crie uma Senha", type="password").strip()
-                btn_ativar_teste = st.form_submit_button("Ativar Teste Grátis de 5 Dias")
-                
-                if btn_ativar_teste:
-                    if email_teste != "" and senha_teste != "":
-                        if supabase:
-                            existe = supabase.table("usuarios").select("email").eq("email", email_teste).execute()
-                            if existe.data:
-                                st.warning("Este e-mail já possui cadastro. Faça login na aba ao lado.")
-                            else:
-                                novo_usuario = {
-                                    "email": email_teste,
-                                    "senha": senha_teste,
-                                    "plano": "Teste Grátis (5 Dias)",
-                                    "permissao_relatorio": False
-                                }
-                                supabase.table("usuarios").insert(novo_usuario).execute()
-                                st.success("Teste grátis criado com sucesso! Vá na aba 'Fazer Login' para entrar.")
-                    else:
-                        st.error("Preencha todos os campos.")
-
         with tab_planos:
             st.markdown("### Escolha o seu plano de acesso profissional:")
             col_p1, col_p2, col_p3 = st.columns(3)
@@ -117,19 +62,6 @@ def verificar_autenticacao():
             st.info("💡 Após a confirmação do pagamento, seu acesso será liberado no e-mail utilizado na compra.")
                     
         return False
-        
-    # Validação do período de teste de 5 dias via banco de dados
-    if st.session_state.get("plano_ativo") == "Teste Grátis (5 Dias)":
-        data_cad_str = str(st.session_state.get("data_cadastro", ""))[:10]
-        try:
-            data_cad = datetime.datetime.strptime(data_cad_str, "%Y-%m-%d").date()
-            dias_decorridos = (datetime.date.today() - data_cad).days
-            if dias_decorridos > 5:
-                st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Escolha um plano para continuar.")
-                st.session_state.autenticado = False
-                st.rerun()
-        except Exception:
-            pass
 
     return True
 
@@ -419,21 +351,6 @@ prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_no
 prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
 prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
 prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
-
-# --- PAINEL ADMINISTRATIVO (Visível apenas para o seu e-mail mestre) ---
-if st.session_state.get("usuario_email") == "jefkar27@gmail.com":
-    with st.sidebar.expander("📊 Painel Administrativo (Admin)"):
-        st.markdown("### Métricas de Acesso")
-        if supabase:
-            res_logs = supabase.table("acessos_log").select("*", count="exact").execute()
-            total_acessos = res_logs.count if res_logs.count is not None else 0
-            st.metric("Total de Acessos Registrados", total_acessos)
-            
-            res_users = supabase.table("usuarios").select("email, plano, data_cadastro").execute()
-            if res_users.data:
-                st.markdown("**Usuários Cadastrados:**")
-                df_users = pd.DataFrame(res_users.data)
-                st.dataframe(df_users, hide_index=True)
 
 st.markdown("---")
 
