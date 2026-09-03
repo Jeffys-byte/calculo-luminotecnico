@@ -13,11 +13,10 @@ st.set_page_config(
 
 # --- BANCO DE DADOS LOCAL DE USUÁRIOS (MEMÓRIA DO APP) ---
 if "usuarios_cadastrados" not in st.session_state:
-    # Já deixamos o seu e-mail cadastrado com acesso vitalício/admin
     st.session_state.usuarios_cadastrados = {
         "jefkar27@gmail.com": {
             "senha": "123", 
-            "criacao": datetime.datetime.now() - datetime.timedelta(days=30), # Conta antiga (ativa)
+            "criacao": datetime.datetime.now() - datetime.timedelta(days=30),
             "tipo": "admin",
             "banco_clientes": [
                 {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
@@ -38,7 +37,6 @@ def verificar_autenticacao():
         
         tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 19,90/mês)"])
         
-        # --- ABA 1: LOGIN ---
         with tab_login:
             with st.form("form_login"):
                 email_input = st.text_input("E-mail cadastrado", value="").strip().lower()
@@ -48,8 +46,6 @@ def verificar_autenticacao():
                 if btn_entrar:
                     if email_input in st.session_state.usuarios_cadastrados:
                         user_data = st.session_state.usuarios_cadastrados[email_input]
-                        
-                        # Verifica se é admin ou se está dentro das 24h de teste, ou se assinou
                         agora = datetime.datetime.now()
                         tempo_criacao = user_data["criacao"]
                         horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
@@ -64,7 +60,6 @@ def verificar_autenticacao():
                     else:
                         st.error("E-mail não encontrado. Crie sua conta na aba ao lado!")
 
-        # --- ABA 2: CRIAR CONTA (TESTE 24H) ---
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
             st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos na obra.")
@@ -95,15 +90,12 @@ def verificar_autenticacao():
                     else:
                         st.error("Preencha todos os campos para criar a conta.")
 
-        # --- ABA 3: PLANOS E PAGAMENTO ---
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
-            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios em Word.")
+            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e liberação de downloads de relatórios.")
             st.info("💡 **Apenas R$ 19,90 / mês** — Cancele quando quiser.")
             
-            # Link oficial de pagamento do Mercado Pago
             link_mercado_pago = "https://mpago.la/2sbQvQ9"
-            
             st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
             st.markdown("*(Assim que assinar, seu acesso é liberado permanentemente).*")
                     
@@ -114,8 +106,9 @@ def verificar_autenticacao():
 if not verificar_autenticacao():
     st.stop()
 
-# Recupera os clientes exclusivos do usuário logado atualmente
 email_atual = st.session_state.usuario_email
+user_info_atual = st.session_state.usuarios_cadastrados.get(email_atual, {})
+
 if email_atual in st.session_state.usuarios_cadastrados:
     if "banco_clientes" not in st.session_state.usuarios_cadastrados[email_atual]:
         st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"] = [
@@ -125,7 +118,6 @@ if email_atual in st.session_state.usuarios_cadastrados:
 else:
     banco_clientes_usuario = [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
 
-# --- TABELA DE NORMAS (NBR ISO/CIE 8995-1) ---
 TABELA_NORMA = {
     "Residências - Salas de Estar / Dormitórios": 150,
     "Residências - Cozinhas / Banheiros": 300,
@@ -140,7 +132,6 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- BANCO DE LUMINÁRIAS ---
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
         {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
@@ -156,7 +147,6 @@ if "banco_fitas" not in st.session_state:
         {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
     ]
 
-# --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM WORD (DOCX) ---
 def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -166,7 +156,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     from docx.oxml.ns import nsdecls
 
     doc = Document()
-    
     for section in doc.sections:
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
@@ -425,7 +414,6 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
                     "Telefone": cad_tel_cli if cad_tel_cli else "Não informado",
                     "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
                 }
-                # Adiciona na lista privada do usuário logado
                 st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"].append(novo_cliente_obj)
                 st.success(f"Cliente '{cad_nome_cli}' cadastrado com sucesso!")
                 st.rerun()
@@ -640,24 +628,40 @@ with aba_fitas:
     metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
     st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
 
-st.subheader("3. Emissão de Relatório Luminotécnico (Word)")
+st.subheader("3. Emissão de Relatório Luminotécnico")
 
-if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
-    dados_prof_dict = {
-        "nome": prof_nome if prof_nome else "Não informado",
-        "registro": prof_registro if prof_registro else "Não informado",
-        "celular": prof_celular if prof_celular else "Não informado",
-        "email": prof_email if prof_email else "Não informado"
-    }
-    
-    logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-    arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-    
-    st.success("Relatório Luminotécnico gerado com sucesso!")
-    st.download_button(
-        label="📥 Baixar Relatório Luminotécnico (.docx)",
-        data=arquivo_docx_bytes,
-        file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True
-    )
+# Verifica se o usuário logado é admin ou assinante liberado para download
+is_admin_or_subscriber = (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False))
+
+if not is_admin_or_subscriber:
+    st.warning("🔒 **Recurso Exclusivo para Assinantes:** O período de teste permite realizar os cálculos na tela, mas a geração e o download dos relatórios oficiais (.docx e .pdf) exigem uma assinatura ativa. Vá na aba **'Assinar (R$ 19,90/mês)'** no topo da página para liberar!")
+else:
+    if st.button("📄 Gerar Relatório Luminotécnico (.docx)", use_container_width=True):
+        dados_prof_dict = {
+            "nome": prof_nome if prof_nome else "Não informado",
+            "registro": prof_registro if prof_registro else "Não informado",
+            "celular": prof_celular if prof_celular else "Não informado",
+            "email": prof_email if prof_email else "Not informed"
+        }
+        
+        logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
+        arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+        
+        st.success("Relatório gerado com sucesso!")
+        st.download_button(
+            label="📥 Baixar Relatório em Word (.docx)",
+            data=arquivo_docx_bytes,
+            file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+
+    # Opção segura e robusta para salvar em PDF via Impressão Nativa do Navegador
+    st.markdown("""
+        <div style="margin-top: 15px; text-align: center;">
+            <button onclick="window.print()" style="background-color: #1A365D; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%;">
+                🖨️ Salvar Relatório em PDF / Imprimir (Nativo)
+            </button>
+            <p style="font-size: 12px; color: gray; margin-top: 5px;">*Dica: Ao clicar, selecione "Salvar como PDF" na janela de impressão do seu navegador.</p>
+        </div>
+    """, unsafe_allow_html=True),
