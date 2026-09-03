@@ -1,17 +1,4 @@
-import streamlit as st
-import pandas as pd
-import io
-import math
-import json
-import os
-import sqlite3
-import hashlib
-from datetime import datetime
-import mercadopago
 
-# --- CONFIGURAÇÕES DO MERCADO PAGO ---
-# Dica: Substitua pelo seu Access Token de Teste ou Produção do Mercado Pago
-ACCESS_TOKEN_MP = "TEST-seu-access-token-aqui" 
 
 # --- BANCO DE DADOS DE USUÁRIOS E LICENÇAS (SQLITE) ---
 ARQUIVO_DB_USUARIOS = "usuarios_sistema.db"
