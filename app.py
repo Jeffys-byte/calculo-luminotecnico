@@ -90,7 +90,7 @@ def cadastrar_usuario(email, senha, nome):
         conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
         cursor = conn.cursor()
         is_adm = 1 if email.strip().lower() == EMAIL_DONO_MESTRE.lower() else 0
-        # Novos usuários criados ganham is_pro = 0 (precisam assinar/pagar para PRO, exceto o dono)
+        # Novos usuários cadastrados iniciam SEM acesso PRO (is_pro = 0) e precisam assinar/pagar, exceto o dono
         is_pr = 1 if is_adm else 0
         
         cursor.execute("INSERT INTO usuarios (email, senha_hash, nome, is_pro, is_admin) VALUES (?, ?, ?, ?, ?)",
@@ -329,7 +329,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} ({dados_prof['titulo']}) — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
+    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} — Registro: {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
     p_info.runs[0].bold = True
     run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
     run_norma.italic = True
@@ -353,6 +353,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
 
     fluxo_fmt = f"{int(d['fluxo']):,}".replace(",", ".")
     fluxo_inst_fmt = f"{int(d['fluxo_instalado']):,}".replace(",", ".")
+    fluxo_req_fmt = f"{int(d['fluxo_req']):,}".replace(",", ".")
 
     adicionar_secao_tabela("1. Identificação e Dados Geométricos", ["Parâmetro", "Símbolo", "Valor", "Unidade"], [Inches(3.0), Inches(0.8), Inches(1.2), Inches(1.5)], [
         ["Nome do Ambiente", "—", d['nome'], "—"],
@@ -373,15 +374,16 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
         ["Fator de Depreciação", "d", f"{d['fator_d']:.2f}", d['desc_depreciacao']]
     ])
     adicionar_secao_tabela("3. Resultados do Dimensionamento", ["Item de Cálculo", "Valor Calculado", "Valor Adotado", "Unidade"], [Inches(3.0), Inches(1.2), Inches(1.3), Inches(1.0)], [
-        ["Fluxo Requerido", f"{d['fluxo_req']:.2f}", "—", "lm"],
+        ["Fluxo Luminoso Necessário", f"{fluxo_req_fmt}", "—", "lm"],
+        ["Fluxo Luminoso Instalado (Real)", f"{fluxo_inst_fmt}", f"{fluxo_inst_fmt}", "lm"],
+        ["Diferencial de Fluxo (Variância)", f"{d['variacao_fluxo_pct']:+.1f}%", f"{d['variacao_fluxo_pct']:+.1f}%", "%"],
         ["Qtd. de Luminárias", f"{d['qtd_teorica']:.2f}", f"{d['qtd_real']}", "un"],
         ["Arranjo (Linhas x Colunas)", f"{d['linhas']} x {d['colunas']}", f"{d['linhas']} x {d['colunas']}", "arr."],
         ["Distância entre Luminárias (C)", f"{d['dist_c']:.2f}", f"{d['dist_c']:.2f}", "m"],
         ["Distância até Parede (C)", f"{d['dist_parede_c']:.2f}", f"{d['dist_parede_c']:.2f}", "m"],
         ["Distância entre Luminárias (L)", f"{d['dist_l']:.2f}", f"{d['dist_l']:.2f}", "m"],
         ["Distância até Parede (L)", f"{d['dist_parede_l']:.2f}", f"{d['dist_parede_l']:.2f}", "m"],
-        ["Fluxo Instalado", f"{fluxo_inst_fmt}", f"{fluxo_inst_fmt}", "lm"],
-        ["Iluminância Real", "—", f"{d['lux_real']:.2f}", "lx"],
+        ["Iluminância Real Alcançada", "—", f"{d['lux_real']:.2f}", "lx"],
         ["Potência Total", "—", f"{d['pot_total']:.2f}", "W"],
         ["Densidade de Potência (DPI)", "—", f"{d['dpi']:.2f}", "W/m²"]
     ])
@@ -467,7 +469,7 @@ if not st.session_state["autenticado"]:
             if nome_cad_input and email_cad_input and senha_cad_input:
                 ok, msg = cadastrar_usuario(email_cad_input, senha_cad_input, nome_cad_input)
                 if ok:
-                    st.success(msg + " Faça login na aba 'Entrar'.")
+                    st.success(msg + " Sua conta foi criada com sucesso! Faça login na aba 'Entrar' para acessar o sistema.")
                 else:
                     st.error(msg)
             else:
@@ -555,9 +557,8 @@ logo_upload = st.sidebar.file_uploader("Sua Logo", type=["png", "jpg", "jpeg"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Responsável Técnico")
-titulo_prof = st.sidebar.selectbox("Categoria", ["Engenheiro(a) Eletricista", "Arquiteto(a) e Urbanista", "Engenheiro(a) Civil"])
 prof_nome = st.sidebar.text_input("Nome do Profissional", "")
-prof_registro = st.sidebar.text_input("Registro (CREA / CAU)", "")
+prof_registro = st.sidebar.text_input("Registro (CREA, CAU, CFT ou CPF)", "")
 
 TABELA_NORMA = {
     "Dormitórios / Suítes": 200,
@@ -649,7 +650,6 @@ for idx, tab in enumerate(tabs):
         with col_b:
             iluminancia_req = st.number_input("Meta (lx)", value=TABELA_NORMA[tipo_atividade], key=f"lux_{amb_atual['id']}")
             
-            # Restaurando opções detalhadas de Fatores de Utilização e Depreciação
             opcoes_u = {
                 "0.65 (Ambiente claro / Reflexão alta)": 0.65,
                 "0.50 (Ambiente médio / Padrão)": 0.50,
@@ -673,7 +673,6 @@ for idx, tab in enumerate(tabs):
         qtd_teorica = fluxo_req_teorico / fluxo_lampada if fluxo_lampada > 0 else 0
         qtd_real = math.ceil(qtd_teorica)
         
-        # Cálculo de arranjo e distanciamento das luminárias
         if qtd_real > 0:
             linhas = max(1, round(math.sqrt(qtd_real * (largura / comprimento))))
             colunas = max(1, math.ceil(qtd_real / linhas))
@@ -687,12 +686,19 @@ for idx, tab in enumerate(tabs):
         dist_parede_l = dist_l / 2.0
 
         fluxo_instalado = qtd_real_ajustada * fluxo_lampada
+        
+        # Cálculo da porcentagem de variação entre o fluxo instalado e o necessário
+        if fluxo_req_teorico > 0:
+            variacao_fluxo_pct = ((fluxo_instalado - fluxo_req_teorico) / fluxo_req_teorico) * 100.0
+        else:
+            variacao_fluxo_pct = 0.0
+
         lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
         pot_total = qtd_real_ajustada * potencia_lampada
         dpi = pot_total / area if area > 0 else 0
         conforme = lux_real >= iluminancia_req
 
-        st.markdown(f"**Resultado:** {qtd_real_ajustada} luminárias ({linhas}L x {colunas}C) | {lux_real:.2f} lx")
+        st.markdown(f"**Resultado:** {qtd_real_ajustada} luminárias ({linhas}L x {colunas}C) | Fluxo Necessário: {fluxo_req_teorico:,.1f} lm | Fluxo Instalado: {fluxo_instalado:,.1f} lm ({variacao_fluxo_pct:+.1f}%)")
 
         lista_calculos_ambientes.append({
             "nome": novo_nome, "comp": comprimento, "larg": largura, "pe_direito": pe_direito,
@@ -700,8 +706,8 @@ for idx, tab in enumerate(tabs):
             "fluxo": fluxo_lampada, "potencia": potencia_lampada, "modelo_lum": modelo_desc_relatorio,
             "k_indice": k_indice, "fator_u": fator_u, "desc_utilizacao": sel_u_desc, "fator_d": fator_d,
             "desc_depreciacao": sel_d_desc, "fluxo_req": fluxo_req_teorico, "qtd_teorica": qtd_teorica,
-            "qtd_real": qtd_real_ajustada, "fluxo_instalado": fluxo_instalado, "lux_real": lux_real,
-            "pot_total": pot_total, "dpi": dpi, "conforme": conforme, "linhas": linhas, "colunas": colunas,
+            "qtd_real": qtd_real_ajustada, "fluxo_instalado": fluxo_instalado, "variacao_fluxo_pct": variacao_fluxo_pct,
+            "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi, "conforme": conforme, "linhas": linhas, "colunas": colunas,
             "dist_c": dist_c, "dist_parede_c": dist_parede_c, "dist_l": dist_l, "dist_parede_l": dist_parede_l
         })
 
@@ -710,7 +716,7 @@ st.subheader("📥 Emissão de Relatório Seguro (.docx)")
 
 if st.button("Gerar Relatório Técnico Completo", use_container_width=True):
     dados_cliente = {"nome": cli_nome if cli_nome else "Cliente Geral"}
-    dados_prof = {"nome": prof_nome if prof_nome else st.session_state["usuario_nome"], "titulo": titulo_prof, "registro": prof_registro or "CREA 0000"}
+    dados_prof = {"nome": prof_nome if prof_nome else st.session_state["usuario_nome"], "registro": prof_registro or "Não informado"}
     arquivo_docx = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_upload)
     
     st.download_button(
@@ -720,3 +726,4 @@ if st.button("Gerar Relatório Técnico Completo", use_container_width=True):
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True
     )
+    
