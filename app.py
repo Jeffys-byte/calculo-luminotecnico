@@ -67,7 +67,7 @@ class PDF(FPDF):
             text = str(text).replace(orig, sub)
         return text.encode('latin-1', 'replace').decode('latin-1')
 
-    def text_cell(self, w, h, txt, border=0, ln=0, align='', fill=False):
+    def text_cell(self, w, h, txt, border=0, ln=1, align='', fill=False):
         self.cell(w, h, self.sanitize(str(txt)), border=border, ln=ln, align=align, fill=fill)
 
 # --- FUNÇÃO DE GERAÇÃO DE PDF ---
@@ -91,26 +91,26 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
                     os.remove(tmp_path)
 
     pdf.set_font("Helvetica", "B", 14)
-    pdf.text_cell(0, 8, "RELATORIO DE DIMENSIONAMENTO LUMINOTECNICO", ln=True, align="C")
+    pdf.text_cell(0, 8, "RELATORIO DE DIMENSIONAMENTO LUMINOTECNICO", align="C")
     pdf.set_font("Helvetica", "I", 10)
-    pdf.text_cell(0, 5, "Projeto de Iluminacao Residencial / Comercial | Metodo dos Lumens", ln=True, align="C")
+    pdf.text_cell(0, 5, "Projeto de Iluminacao Residencial / Comercial | Metodo dos Lumens", align="C")
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "", 9)
-    pdf.text_cell(0, 5, f"Engenheiro Responsavel: {dados_prof['nome']} - {dados_prof['registro']}", ln=True, align="C")
-    pdf.text_cell(0, 5, "Norma de Referencia: NBR ISO/CIE 8995-1 (Iluminacao de Ambientes de Trabalho)", ln=True, align="C")
+    pdf.text_cell(0, 5, f"Engenheiro Responsavel: {dados_prof['nome']} - {dados_prof['registro']}", align="C")
+    pdf.text_cell(0, 5, "Norma de Referencia: NBR ISO/CIE 8995-1 (Iluminacao de Ambientes de Trabalho)", align="C")
     pdf.ln(6)
 
     def criar_tabela_pdf(titulo, colunas, largura_cols, dados):
         pdf.set_font("Helvetica", "B", 11)
-        pdf.text_cell(0, 7, titulo, ln=True)
+        pdf.text_cell(0, 7, titulo)
         pdf.set_font("Helvetica", "B", 9)
         pdf.set_fill_color(31, 78, 121)
         pdf.set_text_color(255, 255, 255)
         
         for idx, col in enumerate(colunas):
-            pdf.text_cell(largura_cols[idx], 6, col, border=1, align="C", fill=True)
-        pdf.ln()
+            is_last = (idx == len(colunas) - 1)
+            pdf.cell(largura_cols[idx], 6, pdf.sanitize(col), border=1, ln=1 if is_last else 0, align="C", fill=True)
         
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Helvetica", "", 8.5)
@@ -119,8 +119,8 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
             pdf.set_fill_color(242, 242, 242) if fill else pdf.set_fill_color(255, 255, 255)
             for c_idx, val in enumerate(linha):
                 align = "C" if c_idx in [1, 2] else "L"
-                pdf.text_cell(largura_cols[c_idx], 5.5, str(val), border=1, align=align, fill=fill)
-            pdf.ln()
+                is_last = (c_idx == len(linha) - 1)
+                pdf.cell(largura_cols[c_idx], 5.5, pdf.sanitize(str(val)), border=1, ln=1 if is_last else 0, align=align, fill=fill)
         pdf.ln(4)
 
     # 1. Identificação
@@ -183,16 +183,19 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 
     # 5. Parecer Técnico
     pdf.set_font("Helvetica", "B", 11)
-    pdf.text_cell(0, 7, "5. Parecer Tecnico e Conformidade", ln=True)
+    pdf.text_cell(0, 7, "5. Parecer Tecnico e Conformidade")
     pdf.set_font("Helvetica", "", 9)
     
     status_str = "CONFORME (Projeto aprovado e recomendado para execucao)." if d['conforme'] else "NAO CONFORME (Revisar fluxo luminoso ou quantidade)."
     
-    pdf.multi_cell(0, 5, pdf.sanitize(f"- Nivel de Iluminancia: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    pdf.multi_cell(0, 5, pdf.sanitize(f"- Eficiencia Energetica: A densidade de potencia instalada e de {d['dpi']:.2f} W/m2, estando dentro dos padroes de eficiencia energetica em LED."))
-    pdf.multi_cell(0, 5, pdf.sanitize(f"- Uniformidade Espacial: A distribuicao em matriz {d['linhas']} x {d['colunas']} com espacamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    # Define a largura utilizável da página para evitar erro no multi_cell
+    w_page = pdf.w - pdf.l_margin - pdf.r_margin
+
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Nivel de Iluminancia: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Eficiencia Energetica: A densidade de potencia instalada e de {d['dpi']:.2f} W/m2, estando dentro dos padroes de eficiencia energetica em LED."))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Uniformidade Espacial: A distribuicao em matriz {d['linhas']} x {d['colunas']} com espacamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
     pdf.set_font("Helvetica", "B", 9)
-    pdf.multi_cell(0, 5, pdf.sanitize(f"- Status Final de Aprovacao: {status_str}"))
+    pdf.multi_cell(w_page, 5, pdf.sanitize(f"- Status Final de Aprovacao: {status_str}"))
 
     buffer = io.BytesIO()
     pdf_output = pdf.output()
@@ -204,7 +207,6 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
 def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
     doc = docx.Document()
     
-    # Margens padrão
     sections = doc.sections
     for section in sections:
         section.top_margin = Inches(0.8)
@@ -356,7 +358,7 @@ st.set_page_config(page_title="Luminotécnica", layout="wide")
 st.title("⚡ Luminotécnica")
 st.write("Dimensionamento Profissional e Gerador de Relatórios de Cálculo Luminotécnico.")
 
-# Sidebar - Dados do Profissional e Logo
+# Sidebar
 st.sidebar.header("🎨 Personalização da Marca")
 logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)", type=["png", "jpg", "jpeg"])
 
@@ -410,7 +412,7 @@ with tab1:
         fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01)
         fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05)
 
-    # --- CÁLCULOS TÉCNICOS COMPLETOS ---
+    # --- CÁLCULOS TÉCNICOS ---
     area = comprimento * largura
     hu = pe_direito - hp - hp_desc
     hu = max(hu, 0.1)
@@ -426,7 +428,6 @@ with tab1:
     dpi = pot_total / area if area > 0 else 0
     conforme = lux_real >= iluminancia_req
 
-    # CORREÇÃO: Uso de round() nativo
     ratio = comprimento / largura if largura > 0 else 1
     colunas = max(1, round(math.sqrt(qtd_real / ratio)))
     linhas = max(1, math.ceil(qtd_real / colunas))
