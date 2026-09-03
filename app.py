@@ -82,12 +82,10 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
                 tmp_file.write(logo_file.read())
                 tmp_path = tmp_file.name
             try:
-                # Posiciona no canto esquerdo (x=10, y=10) com largura reduzida (w=25)
                 pdf.image(tmp_path, x=10, y=10, w=25)
             finally:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
-        # Inicia o texto logo abaixo da imagem
         pdf.set_y(38)
     else:
         pdf.set_y(15)
@@ -107,7 +105,6 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     pdf.cell(0, 4.5, pdf.sanitize("Norma de Referência: NBR ISO/CIE 8995-1 (Iluminação de Ambientes de Trabalho)"), align="C")
     pdf.ln(8)
 
-    # Função interna para gerar as tabelas sem quebrar o retorno no Streamlit
     def criar_tabela_pdf(titulo, colunas, largura_cols, dados):
         pdf.set_font("Helvetica", "B", 10.5)
         pdf.cell(0, 6, pdf.sanitize(titulo))
@@ -200,17 +197,16 @@ def gerar_pdf(dados_cliente, dados_prof, d, logo_file=None):
     
     w_page = pdf.w - pdf.l_margin - pdf.r_margin
 
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
+    # Execuções dos multi_cell sem deixar vazar o retorno para o Streamlit
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Nível de Iluminância: O valor projetado atinge {d['lux_real']:.2f} lx, {'atendendo com folga' if d['conforme'] else 'abaixo da'} a meta de {d['lux_req']} lx exigida pela norma NBR ISO/CIE 8995-1 para o ambiente."))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Eficiência Energética: A densidade de potência instalada é de {d['dpi']:.2f} W/m2, estando dentro dos padrões de eficiência energética em LED."))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Uniformidade Espacial: A distribuição em matriz {d['linhas']} x {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso."))
     pdf.set_font("Helvetica", "B", 8.5)
-    pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
+    _ = pdf.multi_cell(w_page, 4.5, pdf.sanitize(f"- Status Final de Aprovação: {status_str}"))
 
-    buffer = io.BytesIO()
-    pdf_output = pdf.output()
-    buffer.write(pdf_output)
-    buffer.seek(0)
-    return buffer
+    # Converte explicitamente a saída do FPDF2 para bytes
+    pdf_bytes = bytes(pdf.output())
+    return pdf_bytes
 
 # --- FUNÇÃO DE GERAÇÃO DE WORD (.DOCX) ---
 def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
@@ -481,7 +477,8 @@ with tab1:
     
     nome_sanitizado = nome_ambiente.replace(" ", "_")
     
-    buffer_pdf = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
+    # Geração dos arquivos
+    pdf_bytes = gerar_pdf(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
     buffer_docx = gerar_docx(dados_cliente, dados_prof, dados_calculados, logo_file=logo_upload)
     
     col_dl1, col_dl2 = st.columns(2)
@@ -489,7 +486,7 @@ with tab1:
     with col_dl1:
         st.download_button(
             label="📄 Baixar Relatório em PDF",
-            data=buffer_pdf,
+            data=pdf_bytes,
             file_name=f"Relatorio_Luminotecnico_{nome_sanitizado}.pdf",
             mime="application/pdf",
             use_container_width=True
