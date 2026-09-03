@@ -95,8 +95,8 @@ def verificar_autenticacao():
             st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios em Word.")
             st.info("💡 **Apenas R$ 14,90 / mês** — Cancele quando quiser.")
             
-            # Substitua pelo link correto do Mercado Pago quando criar o seu botão de assinatura
-            link_mercado_pago = "https://www.mercadopago.com.br"
+            # Link oficial de pagamento do Mercado Pago atualizado
+            link_mercado_pago = "https://mpago.la/2sbQvQ9"
             
             st.link_button("💳 Assinar Agora por R$ 14,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
             st.markdown("*(Assim que assinar, seu acesso é liberado permanentemente).*")
