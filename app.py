@@ -81,35 +81,26 @@ TABELA_NORMA = {
     "Garagens - Áreas de Estacionamento / Circulação": 75,
 }
 
-# --- BANCO COMPLETO RESTAURADO E AMPLIADO ---
+# --- BANCO COMPLETO RESTAURADO (EXCLUSIVAMENTE LUMINÁRIAS E PAINÉIS + FITAS SEPARADAS PARA CLIENTE ESPECIAL) ---
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
-        # Luminárias / Painéis LED
         {"Fabricante": "Philips", "Modelo": "Painel LED 18W Quadrado Embutir", "Lumens": 1440, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Philips", "Modelo": "Painel LED 24W Redondo Embutir", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
+        {"Fabricante": "Philips", "Modelo": "Luminária de Embutir 2x16W Tubular", "Lumens": 3200, "Potencia": 32.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Osram", "Modelo": "Luminária LED Estanque 36W", "Lumens": 3600, "Potencia": 36.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Taschibra", "Modelo": "Painel LED Slim 12W Quadrado", "Lumens": 960, "Potencia": 12.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Gaya", "Modelo": "Luminária Plafon LED 25W", "Lumens": 2000, "Potencia": 25.0, "Tipo": "Painel/Luminária"},
-        
-        # Spots LED
-        {"Fabricante": "Emalux", "Modelo": "Spot LED Direcionável 7W", "Lumens": 560, "Potencia": 7.0, "Tipo": "Spot"},
-        {"Fabricante": "Emalux", "Modelo": "Spot LED Direcionável 5W COB", "Lumens": 400, "Potencia": 5.0, "Tipo": "Spot"},
-        {"Fabricante": "Ledvance", "Modelo": "Spot Downlight LED 7W Recessado", "Lumens": 560, "Potencia": 7.0, "Tipo": "Spot"},
-        {"Fabricante": "Stella", "Modelo": "Spot Direcionável 10W Quadrado", "Lumens": 800, "Potencia": 10.0, "Tipo": "Spot"},
-        {"Fabricante": "New Line", "Modelo": "Spot de Embutir 3W Direcionável", "Lumens": 240, "Potencia": 3.0, "Tipo": "Spot"},
-        {"Fabricante": "Foz", "Modelo": "Spot Orientável 8W Bilamp", "Lumens": 640, "Potencia": 8.0, "Tipo": "Spot"},
-        
-        # Fitas LED (Valores por Metro Linear)
-        {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m (Metro)", "Lumens": 900, "Potencia": 10.0, "Tipo": "Fita LED"},
-        {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20 (120led/m)", "Lumens": 900, "Potencia": 10.0, "Tipo": "Fita LED"},
-        {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4, "Tipo": "Fita LED"},
-        {"Fabricante": "Stella", "Modelo": "Fita LED Alta Eficiência 8W/m", "Lumens": 880, "Potencia": 8.0, "Tipo": "Fita LED"},
-        {"Fabricante": "Ledvance", "Modelo": "Fita LED Flexível 4.8W/m IP65", "Lumens": 380, "Potencia": 4.8, "Tipo": "Fita LED"},
-        {"Fabricante": "Mundo LED", "Modelo": "Fita LED Profissional 18W/m COB", "Lumens": 1600, "Potencia": 18.0, "Tipo": "Fita LED"},
-        
-        # Industriais
+        {"Fabricante": "Ledvance", "Modelo": "Downlight LED 18W Embutir", "Lumens": 1530, "Potencia": 18.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Osram", "Modelo": "High Bay LED Industrial 150W", "Lumens": 19500, "Potencia": 150.0, "Tipo": "Industrial"},
+    ]
+
+# Banco separado de Fitas LED estrito para o cliente especial (Sprimion / Premium)
+if "banco_fitas_especial" not in st.session_state:
+    st.session_state.banco_fitas_especial = [
+        {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20 (Metro)", "Lumens": 900, "Potencia": 10.0, "Tipo": "Fita LED"},
+        {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050 (Metro)", "Lumens": 1200, "Potencia": 14.4, "Tipo": "Fita LED"},
+        {"Fabricante": "Mundo LED", "Modelo": "Fita LED Profissional 18W/m COB (Metro)", "Lumens": 1600, "Potencia": 18.0, "Tipo": "Fita LED"},
     ]
 
 # --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO ÚNICO EM WORD (DOCX) ---
@@ -275,7 +266,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
-        # 3. Resultados do Dimensionamento (Garantindo que a Qtd saia impressa na tabela)
+        # 3. Resultados do Dimensionamento
         h3 = doc.add_heading(level=2)
         r_h3 = h3.add_run("3. Resultados do Dimensionamento e Espaçamentos")
         r_h3.font.size = Pt(10.5)
@@ -372,34 +363,11 @@ with col_cli1:
 with col_cli2:
     cli_email = st.text_input("E-mail do Cliente", value="", key="cli_email_input")
 
+# --- SEÇÃO EXCLUSIVA / SEPARADA PARA CLIENTE SPRIMION (PREMIUM) ---
+is_cliente_sprimion = st.checkbox("🌟 Habilitar Módulo Exclusivo para Cliente Sprimion (Fitas LED Lineares)")
+
 st.markdown("---")
 st.markdown("### 🛋️ 2. Gerenciamento de Ambientes e Seleção de Equipamentos")
-
-with st.expander("⚙️ Gerenciar / Cadastrar Novas Fontes no Banco"):
-    with st.form("form_nova_lum"):
-        st.markdown("Adicione novas opções ao banco de equipamentos:")
-        col_fl1, col_fl2, col_fl3, col_fl4, col_fl5 = st.columns(5)
-        with col_fl1:
-            novo_tipo = st.selectbox("Categoria", ["Painel/Luminária", "Spot", "Fita LED", "Industrial"])
-        with col_fl2:
-            novo_fab = st.text_input("Fabricante", value="Marca X")
-        with col_fl3:
-            novo_mod = st.text_input("Modelo", value="Modelo Y")
-        with col_fl4:
-            novo_lum = st.number_input("Fluxo (lm / lm por metro)", value=800.0, step=50.0)
-        with col_fl5:
-            nova_pot = st.number_input("Potência (W / W por metro)", value=10.0, step=1.0)
-            
-        btn_salvar_lum = st.form_submit_button("Salvar no Banco")
-        if btn_salvar_lum:
-            st.session_state.banco_luminarias.append({
-                "Fabricante": novo_fab,
-                "Modelo": novo_mod,
-                "Lumens": novo_lum,
-                "Potencia": nova_pot,
-                "Tipo": novo_tipo
-            })
-            st.success(f"Equipamento [{novo_tipo}] cadastrado com sucesso!")
 
 if "ambientes" not in st.session_state:
     st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
@@ -427,40 +395,58 @@ for amb_atual in st.session_state.ambientes:
         with col_n2:
             tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
-        st.markdown("##### 💡 Sistema de Iluminação (Tópicos Separados)")
+        st.markdown("##### 💡 Seleção de Luminárias e Painéis")
         
-        # Tópicos limpos e separados por abas para não misturar os tipos de cálculo
-        tipo_sistema = st.selectbox(
-            "Escolha o tipo de equipamento para este ambiente:",
-            ["Painéis e Luminárias (Embutir / Sobrepor)", "Spots Direcionáveis", "Fitas LED Lineares"],
-            key=f"tipo_sis_{amb_atual['id']}"
-        )
-
-        if "Painéis" in tipo_sistema:
-            filtro_banco = "Painel/Luminária"
-        elif "Spots" in tipo_sistema:
-            filtro_banco = "Spot"
+        # Se o cliente Sprimion estiver ativo, permite escolher entre Luminárias Normais e Fitas LED em seções totalmente limpas e separadas
+        if is_cliente_sprimion:
+            tipo_sistema_escolhido = st.radio(
+                "Categoria de Sistema para este Ambiente:",
+                ["Luminárias e Painéis Tradicionais", "Fitas LED Lineares (Exclusivo Sprimion)"],
+                key=f"tipo_sis_sprimion_{amb_atual['id']}"
+            )
         else:
-            filtro_banco = "Fita LED"
+            tipo_sistema_escolhido = "Luminárias e Painéis Tradicionais"
 
-        banco_filtrado = [l for l in st.session_state.banco_luminarias if l.get("Tipo") == filtro_banco]
-        opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_filtrado]
-        opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
-        
-        escolha_banco = st.selectbox(f"Selecionar Modelo ({filtro_banco})", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
+        if tipo_sistema_escolhido == "Luminárias e Painéis Tradicionais":
+            banco_ativo = st.session_state.banco_luminarias
+            opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_ativo]
+            opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
+            
+            escolha_banco = st.selectbox("Selecionar Luminária / Painel", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
 
-        if escolha_banco != "⚙️ Inserir Manual / Personalizado":
-            idx_escolhido = opcoes_banco_str.index(escolha_banco)
-            lum_sel = banco_filtrado[idx_escolhido]
-            fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
-            modelo_desc_relatorio = f"[{filtro_banco}] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
+            if escolha_banco != "⚙️ Inserir Manual / Personalizado":
+                idx_escolhido = opcoes_banco_str.index(escolha_banco)
+                lum_sel = banco_ativo[idx_escolhido]
+                fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
+                modelo_desc_relatorio = f"[Painel/Luminária] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
+            else:
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    fluxo_base = st.number_input("Fluxo Luminoso da Unidade (lm)", value=1440.0, step=50.0, key=f"fluxo_man_{amb_atual['id']}")
+                with col_m2:
+                    potencia_base = st.number_input("Potência Unitária (W)", value=18.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
+                modelo_desc_relatorio = "[Painel/Luminária] Personalizado"
+            modo_fita = False
         else:
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                fluxo_base = st.number_input("Fluxo Luminoso (lm ou lm/m)", value=800.0, step=50.0, key=f"fluxo_man_{amb_atual['id']}")
-            with col_m2:
-                potencia_base = st.number_input("Potência (W ou W/m)", value=10.0, step=1.0, key=f"pot_man_{amb_atual['id']}")
-            modelo_desc_relatorio = f"[{filtro_banco}] Personalizado"
+            banco_ativo = st.session_state.banco_fitas_especial
+            opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm/m / {l['Potencia']} W/m)" for l in banco_ativo]
+            opcoes_banco_str.append("⚙️ Inserir Fita Manual / Personalizada")
+            
+            escolha_banco = st.selectbox("Selecionar Fita LED Linear (Sprimion)", opcoes_banco_str, key=f"fita_escolha_{amb_atual['id']}")
+
+            if escolha_banco != "⚙️ Inserir Fita Manual / Personalizada":
+                idx_escolhido = opcoes_banco_str.index(escolha_banco)
+                lum_sel = banco_ativo[idx_escolhido]
+                fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
+                modelo_desc_relatorio = f"[Fita LED Sprimion] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
+            else:
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    fluxo_base = st.number_input("Fluxo por Metro Linear (lm/m)", value=900.0, step=50.0, key=f"fluxo_fita_man_{amb_atual['id']}")
+                with col_m2:
+                    potencia_base = st.number_input("Potência por Metro Linear (W/m)", value=10.0, step=1.0, key=f"pot_fita_man_{amb_atual['id']}")
+                modelo_desc_relatorio = "[Fita LED Sprimion] Personalizada"
+            modo_fita = True
 
         st.markdown("##### Geometria e Fatores")
         col_g1, col_g2, col_g3 = st.columns(3)
@@ -487,8 +473,7 @@ for amb_atual in st.session_state.ambientes:
 
         fluxo_req = (lux_req * area) / (fator_u * fator_d) if (fator_u * fator_d) > 0 else 0
 
-        # Tratamento específico para Fita LED vs Luminárias/Spots
-        if filtro_banco == "Fita LED":
+        if modo_fita:
             fluxo_metro = fluxo_base
             pot_metro = potencia_base
             qtd_teorica = fluxo_req / fluxo_metro if fluxo_metro > 0 else 0
@@ -506,7 +491,7 @@ for amb_atual in st.session_state.ambientes:
             
             qtd_real_str = f"{qtd_real:.1f} m"
             unidade_medida_qtd = "m"
-            arranjo_str = "Perimetral / Linear"
+            arranjo_str = "Linear Perimetral Sprimion"
             fluxo_unidade_rel = fluxo_metro
             pot_unidade_rel = pot_metro
             unidade_pot_desc = "W/m (Consumo por Metro)"
@@ -523,9 +508,9 @@ for amb_atual in st.session_state.ambientes:
             linhas = math.ceil(qtd_real / colunas) if colunas > 0 else 1
 
             dist_c_entre = comp / colunas if colunas > 0 else comp
-            dist_c_parede = dist_c_entre / 2.0  # Distância até parede é a metade
+            dist_c_parede = dist_c_entre / 2.0
             dist_l_entre = larg / linhas if linhas > 0 else larg
-            dist_l_parede = dist_l_entre / 2.0  # Distância até parede é a metade
+            dist_l_parede = dist_l_entre / 2.0
 
             fluxo_instalado = qtd_real * fluxo_lampada
             pot_total = qtd_real * potencia_lampada
@@ -542,11 +527,11 @@ for amb_atual in st.session_state.ambientes:
         variacao_fluxo_pct = ((fluxo_instalado - fluxo_req) / fluxo_req) * 100 if fluxo_req > 0 else 0
         conforme = lux_real >= lux_req
 
-        # --- AVISO VISÍVEL NA TELA DOS AFASTAMENTOS E QUANTIDADE ---
-        if filtro_banco != "Fita LED":
-            st.info(f"✨ **Resultado:** **{qtd_real} unidades** | 📏 **Espaçamento entre Pontos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede (Metade):** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m")
+        # --- AVISO VISÍVEL NA TELA COM QUANTIDADE CORRETA ---
+        if not modo_fita:
+            st.info(f"✨ **Resultado:** **{int(qtd_real)} unidades** | 📏 **Espaçamento entre Pontos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede (Metade):** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m")
         else:
-            st.info(f"✨ **Resultado:** **{qtd_real:.1f} metros** lineares de Fita LED.")
+            st.info(f"✨ **Resultado Sprimion:** **{qtd_real:.1f} metros** lineares de Fita LED.")
 
         lista_calculos_ambientes.append({
             "id": amb_atual["id"],
