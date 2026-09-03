@@ -41,7 +41,7 @@ def inicializar_db_usuarios():
         )
     ''')
     
-    # Cria tabela de luminárias se não existir
+    # Cria tabela de luminárias se não existir com todas as colunas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS luminarias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,18 +54,22 @@ def inicializar_db_usuarios():
         )
     ''')
     
-    # Adiciona colunas caso o banco seja antigo e não as tenha
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN sessao_ativa TEXT")
-    except sqlite3.OperationalError:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE luminarias ADD COLUMN global INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-
     conn.commit()
+    
+    # Verifica e adiciona colunas caso o banco seja antigo e já exista sem elas
+    def garantir_coluna(tabela, coluna, definicao):
+        cursor.execute(f"PRAGMA table_info({tabela})")
+        colunas = [col[1] for col in cursor.fetchall()]
+        if coluna not in colunas:
+            try:
+                cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+                conn.commit()
+            except Exception as e:
+                print(f"Erro ao adicionar coluna {coluna}: {e}")
+
+    garantir_coluna("usuarios", "sessao_ativa", "TEXT")
+    garantir_coluna("luminarias", "global", "INTEGER DEFAULT 0")
+    garantir_coluna("luminarias", "email_usuario", "TEXT")
     
     # Garante que o Dono Mestre exista e seja Admin/Pro automaticamente
     cursor.execute("SELECT email FROM usuarios WHERE email = ?", (EMAIL_DONO_MESTRE,))
