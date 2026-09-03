@@ -55,7 +55,7 @@ def format_table_rows(table, col_widths=None):
             if col_widths and c_idx < len(col_widths):
                 cell.width = col_widths[c_idx]
 
-# --- FUNÇÃO DE GERAÇÃO DE WORD INDIVIDUAL (USADA NO LOTE PARA CADA AMBIENTE) ---
+# --- FUNÇÃO DE GERAÇÃO DE RELATÓRIO POR AMBIENTE ---
 def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     # Cabeçalho do Ambiente
     p_titulo = doc.add_paragraph()
@@ -184,7 +184,7 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     run_status.bold = True
     run_status.font.color.rgb = RGBColor(38, 128, 0) if d['conforme'] else RGBColor(200, 0, 0)
 
-# --- FUNÇÃO PRINCIPAL DE GERAÇÃO EM LOTE (.DOCX) ---
+# --- FUNÇÃO DE GERAÇÃO EM LOTE ---
 def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=None):
     doc = docx.Document()
     
@@ -202,10 +202,9 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
         p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
         doc.add_paragraph()
 
-    # Itera sobre cada ambiente gerando o relatório completo individualmente
+    # Itera sobre cada ambiente adicionando o relatório completo individual
     for idx, d in enumerate(lista_dados_ambientes):
         adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d)
-        # Se não for o último ambiente, adiciona uma quebra de página entre eles
         if idx < len(lista_dados_ambientes) - 1:
             doc.add_page_break()
 
@@ -231,7 +230,7 @@ def gerar_docx(dados_cliente, dados_prof, d, logo_file=None):
         p_logo.add_run().add_picture(logo_file, width=Inches(1.0))
         doc.add_paragraph()
 
-    # Cabeçalho
+    # Cabeçalho Geral
     p_titulo = doc.add_paragraph()
     p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_titulo.paragraph_format.space_after = Pt(2)
@@ -387,7 +386,7 @@ with tab1:
 # --- ABA DE GERENCIAMENTO EM LOTE ---
 with tab2:
     st.subheader("📋 Planilha de Dimensionamento em Lote")
-    st.write("Adicione ou edite os ambientes na tabela. O relatório final gerado conterá a estrutura completa detalhada (tabelas e pareceres) de forma sequencial para cada cômodo.")
+    st.write("Adicione ou edite os ambientes na tabela abaixo. O relatório gerado conterá a estrutura completa detalhada (todas as tabelas e pareceres técnicos) para **cada um** dos ambientes cadastrados.")
 
     data_inicial = pd.DataFrame([
         {"Ambiente": "Sala de Estar", "Comprimento (m)": 6.0, "Largura (m)": 4.0, "Pé-Direito (m)": 2.8, "Meta Lux": 150, "Fluxo Lâmpada (lm)": 1800, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
@@ -430,7 +429,7 @@ with tab2:
             colunas = max(1, round(math.sqrt(qtd_real / ratio)))
             linhas = max(1, math.ceil(qtd_real / colunas))
             dist_c = comp / linhas if linhas > 0 else 0
-            dist_l = largura / colunas if largura > 0 else 0
+            dist_l = larg / colunas if colunas > 0 else 0
 
             lista_ambientes.append({
                 "nome": row["Ambiente"], "comp": comp, "larg": larg,
