@@ -276,9 +276,10 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
-prof_nome = st.sidebar.text_input("Nome do Profissional", "Jefferson Barcellos Borges")
-prof_registro = st.sidebar.text_input("Registro (CREA / CFT)", "Engenheiro Eletricista")
-prof_contato = st.sidebar.text_input("Contato / E-mail", "contato@empresa.com")
+# Alterado para valores genéricos/instruções de preenchimento para novos usuários
+prof_nome = st.sidebar.text_input("Nome do Profissional", "Digite seu nome aqui")
+prof_registro = st.sidebar.text_input("Registro (CREA / CFT)", "Ex: CREA/RJ 000.000")
+prof_contato = st.sidebar.text_input("Contato / E-mail", "seu.email@empresa.com")
 
 TABELA_NORMA = {
     "Dormitórios / Suítes (Residencial)": 200,
@@ -461,4 +462,3 @@ with tab2:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
-        
