@@ -3,6 +3,8 @@ import pandas as pd
 import math
 import io
 import datetime
+import json
+import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -11,18 +13,52 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BANCO DE DADOS LOCAL DE USUÁRIOS (MEMÓRIA DO APP) ---
-if "usuarios_cadastrados" not in st.session_state:
-    st.session_state.usuarios_cadastrados = {
+# --- PERSISTÊNCIA DE DADOS EM ARQUIVO JSON (NÃO ZERA AO ATUALIZAR O CÓDIGO) ---
+ARQUIVO_BANCO = "banco_usuarios.json"
+
+def carregar_banco():
+    if os.path.exists(ARQUIVO_BANCO):
+        try:
+            with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                # Converte de volta a string de data para objeto datetime
+                for email, info in dados.items():
+                    if "criacao" in info:
+                        try:
+                            info["criacao"] = datetime.datetime.fromisoformat(info["criacao"])
+                        except:
+                            info["criacao"] = datetime.datetime.now()
+                return dados
+        except Exception:
+            pass
+    
+    # Banco padrão inicial se o arquivo não existir
+    return {
         "jefkar27@gmail.com": {
             "senha": "123", 
             "criacao": datetime.datetime.now() - datetime.timedelta(days=30),
             "tipo": "admin",
+            "assinante": True,
             "banco_clientes": [
                 {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
             ]
         }
     }
+
+def salvar_banco(dados):
+    # Prepara cópia convertendo datetime para string (JSON não serializa datetime nativamente)
+    dados_para_salvar = {}
+    for email, info in dados.items():
+        info_copia = info.copy()
+        if "criacao" in info_copia and isinstance(info_copia["criacao"], datetime.datetime):
+            info_copia["criacao"] = info_copia["criacao"].isoformat()
+        dados_para_salvar[email] = info_copia
+        
+    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
+
+if "usuarios_cadastrados" not in st.session_state:
+    st.session_state.usuarios_cadastrados = carregar_banco()
 
 # --- SISTEMA DE AUTENTICAÇÃO, CADASTRO E TESTE DE 24H ---
 def verificar_autenticacao():
@@ -83,6 +119,7 @@ def verificar_autenticacao():
                                     {"Nome": "Cliente Exemplo", "Email": "exemplo@email.com", "Telefone": "(21) 98888-8888", "Cidade": "Rio de Janeiro - RJ"}
                                 ]
                             }
+                            salvar_banco(st.session_state.usuarios_cadastrados)
                             st.session_state.autenticado = True
                             st.session_state.usuario_email = novo_email
                             st.success("Conta criada com sucesso! Seu teste de 24 horas começou.")
@@ -114,6 +151,7 @@ if email_atual in st.session_state.usuarios_cadastrados:
         st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"] = [
             {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
         ]
+        salvar_banco(st.session_state.usuarios_cadastrados)
     banco_clientes_usuario = st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"]
 else:
     banco_clientes_usuario = [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
@@ -415,6 +453,7 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
                     "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
                 }
                 st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"].append(novo_cliente_obj)
+                salvar_banco(st.session_state.usuarios_cadastrados)
                 st.success(f"Cliente '{cad_nome_cli}' cadastrado com sucesso!")
                 st.rerun()
             else:
@@ -630,7 +669,6 @@ with aba_fitas:
 
 st.subheader("3. Emissão de Relatório Luminotécnico")
 
-# Verifica se o usuário logado é admin ou assinante liberado para download
 is_admin_or_subscriber = (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False))
 
 if not is_admin_or_subscriber:
@@ -641,7 +679,7 @@ else:
             "nome": prof_nome if prof_nome else "Não informado",
             "registro": prof_registro if prof_registro else "Não informado",
             "celular": prof_celular if prof_celular else "Não informado",
-            "email": prof_email if prof_email else "Not informed"
+            "email": prof_email if prof_email else "Não informado"
         }
         
         logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
@@ -656,7 +694,6 @@ else:
             use_container_width=True
         )
 
-    # Opção segura e robusta para salvar em PDF via Impressão Nativa do Navegador
     st.markdown("""
         <div style="margin-top: 15px; text-align: center;">
             <button onclick="window.print()" style="background-color: #1A365D; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%;">
@@ -664,4 +701,4 @@ else:
             </button>
             <p style="font-size: 12px; color: gray; margin-top: 5px;">*Dica: Ao clicar, selecione "Salvar como PDF" na janela de impressão do seu navegador.</p>
         </div>
-    """, unsafe_allow_html=True),
+    """, unsafe_allow_html=True)
