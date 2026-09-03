@@ -387,13 +387,36 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- BARRA LATERAL: AUTENTICAÇÃO E PLANOS COM ILUSTRAÇÕES ---
+# --- BARRA LATERAL: AUTENTICAÇÃO E LOGO MINIMALISTA ---
 st.sidebar.header("🔐 Portal do Cliente")
 
 if not st.session_state["autenticado"]:
-    # Imagens ilustrativas na barra lateral para embelezar o login
-    st.sidebar.image("https://images.unsplash.com/photo-1540932239986-30128078f3c5?auto=format&fit=crop&w=600&q=80", caption="Projetos Luminotécnicos & Arquitetura")
-    
+    # Exibição da Logo Vetorial em SVG Minimalista (Lâmpada Acesa)
+    logo_svg_html = """
+    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220" width="100%" height="110">
+        <defs>
+          <style>
+            .bulb-stroke { fill: none; stroke: #1B263B; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+            .spark-stroke { fill: none; stroke: #E0A96D; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+            .brand-text { font-family: 'Arial', sans-serif; font-weight: 700; font-size: 24px; fill: #1B263B; letter-spacing: 3px; }
+          </style>
+        </defs>
+        <!-- Ícone Minimalista -->
+        <g transform="translate(190, 5)">
+          <path class="spark-stroke" d="M 60 20 L 60 5" />
+          <path class="spark-stroke" d="M 90 30 L 100 20" />
+          <path class="spark-stroke" d="M 30 30 L 20 20" />
+          <path class="bulb-stroke" d="M 30 100 C 15 85 10 65 10 50 C 10 25 30 10 60 10 C 90 10 110 25 110 50 C 110 65 105 85 90 100 Z" />
+          <path class="bulb-stroke" d="M 45 100 L 75 100" />
+          <path class="bulb-stroke" d="M 50 112 L 70 112" />
+          <path class="bulb-stroke" d="M 54 124 L 66 124" />
+        </g>
+      </svg>
+    </div>
+    """
+    st.sidebar.markdown(logo_svg_html, unsafe_allow_html=True)
+
     aba_login, aba_cadastro, aba_recuperar = st.sidebar.tabs(["Entrar", "Criar Conta", "Recuperar"])
     
     with aba_login:
@@ -449,7 +472,7 @@ if not st.session_state["autenticado"]:
         if st.session_state["token_gerado_temp"]:
             st.markdown("---")
             token_digitado = st.text_input("Digite o Código de 6 Dígitos", key="tk_digitado")
-            nova_senha_rec = st.text_input("Nova Senha", type="password", key=" nova_s_rec")
+            nova_senha_rec = st.text_input("Nova Senha", type="password", key="nova_s_rec")
             if st.button("Redefinir Senha", use_container_width=True, key="btn_confirmar_nova_senha"):
                 if token_digitado and nova_senha_rec:
                     ok_red, msg_red = redefinir_senha_com_token(st.session_state["email_alvo_rec"], token_digitado, nova_senha_rec)
