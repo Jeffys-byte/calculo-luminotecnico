@@ -27,6 +27,8 @@ sdk = mercadopago.SDK(ACCESS_TOKEN_MP)
 def inicializar_db_usuarios():
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
+    
+    # Cria tabela de usuários se não existir
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             email TEXT PRIMARY KEY,
@@ -39,7 +41,7 @@ def inicializar_db_usuarios():
         )
     ''')
     
-    # Tabela de Luminárias por Usuário (Privadas ou Globais)
+    # Cria tabela de luminárias se não existir
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS luminarias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +54,17 @@ def inicializar_db_usuarios():
         )
     ''')
     
+    # Adiciona colunas caso o banco seja antigo e não as tenha
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN sessao_ativa TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE luminarias ADD COLUMN global INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     
     # Garante que o Dono Mestre exista e seja Admin/Pro automaticamente
@@ -94,7 +107,6 @@ def verificar_login(email, senha):
     resultado = cursor.fetchone()
     
     if resultado and resultado[0] == hash_senha(senha):
-        # Gera um novo token de sessão única para derrubar outros acessos simultâneos
         nova_sessao = str(uuid.uuid4())
         cursor.execute("UPDATE usuarios SET sessao_ativa = ? WHERE email = ?", (nova_sessao, email_limpo))
         conn.commit()
@@ -159,10 +171,8 @@ def carregar_luminarias_usuario(email_usuario, is_admin):
     conn = sqlite3.connect(ARQUIVO_DB_USUARIOS)
     cursor = conn.cursor()
     if is_admin:
-        # Dono vê tudo (as globais e todas as cadastradas por qualquer usuário)
         cursor.execute("SELECT id, email_usuario, fabricante, modelo, lumens, potencia, global FROM luminarias")
     else:
-        # Usuário comum vê as globais padrão + as que ele mesmo cadastrou
         cursor.execute("SELECT id, email_usuario, fabricante, modelo, lumens, potencia, global FROM luminarias WHERE global = 1 OR email_usuario = ?", (email_usuario,))
     
     rows = cursor.fetchall()
@@ -180,7 +190,6 @@ def carregar_luminarias_usuario(email_usuario, is_admin):
             "Global": bool(r[6])
         })
     
-    # Se a lista estiver vazia para o usuário, injeta padrões globais iniciais
     if not lista and not is_admin:
         padroes = [
             ("Genérica", "Painel LED Embutir 18W", 1440.0, 18.0),
@@ -224,7 +233,6 @@ def criar_link_pagamento_mp(email_usuario):
 # --- INTERFACE WEB STREAMLIT ---
 st.set_page_config(page_title="Sistema Luminotécnico SaaS", layout="wide")
 
-# Gerenciamento de Sessão de Login
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 if "usuario_email" not in st.session_state:
@@ -238,14 +246,12 @@ if "is_admin" not in st.session_state:
 if "token_sessao" not in st.session_state:
     st.session_state["token_sessao"] = ""
 
-# Validação de Sessão Concorrente (Derruba se logou em outro dispositivo)
 if st.session_state["autenticado"]:
     if not validar_sessao_ativa(st.session_state["usuario_email"], st.session_state["token_sessao"]):
         st.session_state["autenticado"] = False
         st.error("⚠️ Sua conta foi acessada em outro dispositivo. Esta sessão foi encerrada.")
         st.stop()
 
-# --- CAPTURA DE RETORNO DO PAGAMENTO ---
 query_params = st.query_params
 if "pagamento" in query_params and query_params["pagamento"] == "sucesso":
     if st.session_state["autenticado"] and not st.session_state["is_pro"]:
@@ -492,7 +498,6 @@ if not st.session_state["autenticado"]:
     """, unsafe_allow_html=True)
     st.stop()
 
-# Se logado:
 st.sidebar.success(f"Olá, **{st.session_state['usuario_nome']}**!")
 plano_atual_str = "👑 ADMINISTRADOR (Dono)" if st.session_state["is_admin"] else ("🚀 PRO" if st.session_state["is_pro"] else "📌 Básico")
 st.sidebar.info(f"Perfil: **{plano_atual_str}**")
