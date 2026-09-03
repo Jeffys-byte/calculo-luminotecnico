@@ -387,22 +387,21 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- BARRA LATERAL: AUTENTICAÇÃO E LOGO MINIMALISTA ---
+# --- BARRA LATERAL: AUTENTICAÇÃO E LOGO COM ALTO CONTRASTE (FUNDO ESCURO) ---
 st.sidebar.header("🔐 Portal do Cliente")
 
 if not st.session_state["autenticado"]:
-    # Exibição da Logo Vetorial em SVG Minimalista (Lâmpada Acesa)
+    # Logo SVG com cores claras/brancas otimizadas para fundos escuros
     logo_svg_html = """
-    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px;">
+    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220" width="100%" height="110">
         <defs>
           <style>
-            .bulb-stroke { fill: none; stroke: #1B263B; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
-            .spark-stroke { fill: none; stroke: #E0A96D; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
-            .brand-text { font-family: 'Arial', sans-serif; font-weight: 700; font-size: 24px; fill: #1B263B; letter-spacing: 3px; }
+            .bulb-stroke { fill: none; stroke: #FFFFFF; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+            .spark-stroke { fill: none; stroke: #FFD166; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
           </style>
         </defs>
-        <!-- Ícone Minimalista -->
+        <!-- Ícone Minimalista com alto contraste -->
         <g transform="translate(190, 5)">
           <path class="spark-stroke" d="M 60 20 L 60 5" />
           <path class="spark-stroke" d="M 90 30 L 100 20" />
