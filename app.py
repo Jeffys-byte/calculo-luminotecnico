@@ -180,8 +180,17 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p2.add_run(f"A densidade de potência instalada é de {d['dpi']:.2f} W/m², estando dentro dos padrões de alta eficiência para iluminação em LED.")
 
     p3 = doc.add_paragraph()
-    p3.add_run("• Uniformidade Espacial: ").bold = True
-    p3.add_run(f"A distribuição em matriz {d['linhas']} × {d['colunas']} com espaçamentos calculados garante homogeneidade do fluxo luminoso sobre o plano de trabalho a {d['hp']:.2f} m do piso.")
+    p3.add_run("• Uniformidade e Critério de Afastamento: ").bold = True
+    p3.add_run(f"A distribuição em matriz {d['linhas']} × {d['colunas']} adota o modo de afastamento '{d['modo_afastamento']}'. ")
+    if d['modo_afastamento'] == "Proporcional (S/2)":
+        p3.add_run(f"As distâncias entre luminárias ({d['dist_c']:.2f}m e {d['dist_l']:.2f}m) mantêm a relação adequada com as paredes ({d['dist_parede_c']:.2f}m e {d['dist_parede_l']:.2f}m). ")
+    else:
+        p3.add_run(f"As paredes possuem afastamento fixo de {d['afastamento_fixo']}m conforme exigência do projeto arquitetônico. ")
+    
+    if d['espacamento_ok']:
+        p3.add_run(f"A razão de espaçamento em relação à altura útil (hu = {d['hu']:.2f}m) está dentro do limite máximo seguro de {d['razao_max']:.1f}.")
+    else:
+        p3.add_run(f"ATENÇÃO: A razão de espaçamento ultrapassou o limite recomendado de {d['razao_max']:.1f}, o que pode gerar sombras intermediárias.")
 
     p4 = doc.add_paragraph()
     p4.add_run("• Status Final de Aprovação: ").bold = True
@@ -276,7 +285,6 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
-# Alterado para valores genéricos/instruções de preenchimento para novos usuários
 prof_nome = st.sidebar.text_input("Nome do Profissional", "Digite seu nome aqui")
 prof_registro = st.sidebar.text_input("Registro (CREA / CFT)", "Ex: CREA/RJ 000.000")
 prof_contato = st.sidebar.text_input("Contato / E-mail", "seu.email@empresa.com")
@@ -311,13 +319,20 @@ with tab1:
         hp_desc = st.number_input("Pendotamento / Descimento hp' (m)", value=0.00, step=0.05)
 
     with col_b:
-        st.markdown("**Parâmetros Luminotécnicos**")
+        st.markdown("**Parâmetros Luminotécnicos & Afastamentos**")
         lux_padrao = TABELA_NORMA[tipo_atividade]
         iluminancia_req = st.number_input("Iluminância Meta Requerida (lx)", value=lux_padrao, step=50)
         fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=1800, step=100)
         potencia_lampada = st.number_input("Potência Unitária da Luminária (W)", value=24, step=1)
         fator_u = st.slider("Fator de Utilização (u)", 0.10, 0.90, 0.50, step=0.01)
         fator_d = st.slider("Fator de Depreciação / Perdas (d)", 0.50, 0.95, 0.80, step=0.05)
+        
+        # Novos controles para critérios de espaçamento e paredes
+        razao_max_input = st.slider("Razão Máx. de Espaçamento (Emax / hu)", 1.0, 2.0, 1.25, step=0.05)
+        modo_afastamento = st.selectbox("Critério de Afastamento das Paredes", ["Proporcional (S/2)", "Fixo Personalizado"])
+        afastamento_fixo_val = 0.50
+        if modo_afastamento == "Fixo Personalizado":
+            afastamento_fixo_val = st.number_input("Distância Fixa da Parede (m)", value=0.50, step=0.05)
 
     area = comprimento * largura
     hu = pe_direito - hp - hp_desc
@@ -338,10 +353,21 @@ with tab1:
     colunas = max(1, round(math.sqrt(qtd_real / ratio)))
     linhas = max(1, math.ceil(qtd_real / colunas))
     
+    # Cálculo das distâncias entre luminárias e paredes considerando o modo escolhido
     dist_c = comprimento / linhas if linhas > 0 else 0
-    dist_parede_c = dist_c / 2
     dist_l = largura / colunas if colunas > 0 else 0
-    dist_parede_l = dist_l / 2
+
+    if modo_afastamento == "Proporcional (S/2)":
+        dist_parede_c = dist_c / 2
+        dist_parede_l = dist_l / 2
+    else:
+        dist_parede_c = afastamento_fixo_val
+        dist_parede_l = afastamento_fixo_val
+
+    # Validação da razão de espaçamento em relação à altura útil (hu)
+    maior_espacamento = max(dist_c, dist_l)
+    razao_atual = maior_espacamento / hu if hu > 0 else 0
+    espacamento_ok = razao_atual <= razao_max_input
 
     dados_calculados = {
         "nome": nome_ambiente, "comp": comprimento, "larg": largura,
@@ -354,22 +380,30 @@ with tab1:
         "lux_real": lux_real, "pot_total": pot_total, "dpi": dpi,
         "conforme": conforme, "linhas": linhas, "colunas": colunas,
         "dist_c": dist_c, "dist_parede_c": dist_parede_c,
-        "dist_l": dist_l, "dist_parede_l": dist_parede_l
+        "dist_l": dist_l, "dist_parede_l": dist_parede_l,
+        "modo_afastamento": modo_afastamento, "afastamento_fixo": afastamento_fixo_val,
+        "razao_max": razao_max_input, "razao_atual": razao_atual, "espacamento_ok": espacamento_ok
     }
 
     st.markdown("---")
-    st.subheader("📊 Resultados do Dimensionamento")
+    st.subheader("📊 Resultados do Dimensionamento & Disposição Espacial")
     
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Área Total", f"{area:.2f} m²")
     col2.metric("Índice do Recinto (K)", f"{k_indice:.2f}")
-    col3.metric("Luminárias Recomendadas", f"{qtd_real} un", f"Mínimo teórico: {qtd_teorica:.2f}")
+    col3.metric("Luminárias Recomendadas", f"{qtd_real} un", f"Mínimo: {qtd_teorica:.2f}")
     col4.metric("Iluminância Alcançada", f"{lux_real:.2f} lx", delta=f"{lux_real - iluminancia_req:+.2f} lx")
 
+    # Alertas visuais e normativos na interface
     if conforme:
         st.success(f"✅ **PROJETO CONFORME:** A iluminância calculada ({lux_real:.2f} lx) atende à exigência da NBR ISO/CIE 8995-1 ({iluminancia_req} lx).")
     else:
-        st.warning(f"⚠️ **PROJETO NÃO CONFORME:** A iluminância calculada ({lux_real:.2f} lx) está abaixo da meta ({iluminancia_req} lx). Aumente a quantidade de luminárias ou o fluxo individual.")
+        st.warning(f"⚠️ **PROJETO NÃO CONFORME:** A iluminância calculada ({lux_real:.2f} lx) está abaixo da meta ({iluminancia_req} lx).")
+
+    if espacamento_ok:
+        st.info(f"✨ **ESPAÇAMENTO ADEQUADO:** Razão de espaçamento atual ({razao_atual:.2f}) respeita o limite máximo de segurança de {razao_max_input:.2f} para a altura útil ($h_u$).")
+    else:
+        st.error(f"⚠️ **ATENÇÃO AO ESPAÇAMENTO:** Razão atual ({razao_atual:.2f}) excede o limite normativo/máximo de {razao_max_input:.2f}. Considere aumentar a quantidade de luminárias.")
 
     st.markdown("---")
     
@@ -389,7 +423,7 @@ with tab1:
 
 with tab2:
     st.subheader("📋 Planilha de Dimensionamento em Lote")
-    st.write("Adicione ou edite os ambientes na tabela abaixo. O relatório gerado conterá a estrutura completa detalhada para **cada um** dos ambientes cadastrados.")
+    st.write("Adicione ou edite os ambientes na tabela abaixo para processar múltiplos espaços de uma só vez.")
 
     data_inicial = pd.DataFrame([
         {"Ambiente": "Sala de Estar", "Comprimento (m)": 6.0, "Largura (m)": 4.0, "Pé-Direito (m)": 2.8, "Meta Lux": 150, "Fluxo Lâmpada (lm)": 1800, "Potência (W)": 24, "Fator u": 0.5, "Fator d": 0.8},
@@ -434,6 +468,12 @@ with tab2:
             dist_c = comp / linhas if linhas > 0 else 0
             dist_l = larg / colunas if colunas > 0 else 0
 
+            dist_parede_c = dist_c / 2
+            dist_parede_l = dist_l / 2
+            maior_espacamento = max(dist_c, dist_l)
+            razao_atual = maior_espacamento / hu if hu > 0 else 0
+            espacamento_ok = razao_atual <= 1.25
+
             lista_ambientes.append({
                 "nome": row["Ambiente"], "comp": comp, "larg": larg,
                 "pe_direito": pe_dir, "hp": hp_padrao, "hp_desc": 0.0,
@@ -444,8 +484,10 @@ with tab2:
                 "qtd_real": qtd_real, "fluxo_instalado": fluxo_inst,
                 "lux_real": lux_real, "pot_total": pot_tot, "dpi": dpi,
                 "conforme": conforme, "linhas": linhas, "colunas": colunas,
-                "dist_c": dist_c, "dist_parede_c": dist_c / 2,
-                "dist_l": dist_l, "dist_parede_l": dist_l / 2
+                "dist_c": dist_c, "dist_parede_c": dist_parede_c,
+                "dist_l": dist_l, "dist_parede_l": dist_parede_l,
+                "modo_afastamento": "Proporcional (S/2)", "afastamento_fixo": 0.50,
+                "razao_max": 1.25, "razao_atual": razao_atual, "espacamento_ok": espacamento_ok
             })
 
         st.success("✅ Dimensionamento em lote processado com sucesso!")
