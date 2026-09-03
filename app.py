@@ -80,7 +80,8 @@ def adicionar_relatorio_ambiente(doc, dados_cliente, dados_prof, d):
     p_info = doc.add_paragraph()
     p_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_info.paragraph_format.space_after = Pt(10)
-    p_info.add_run(f"{dados_prof['titulo']} Responsável: {dados_prof['nome']} — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
+    # Exibição limpa separando Nome e Categoria/Título Profissional
+    p_info.add_run(f"Responsável Técnico: {dados_prof['nome']} ({dados_prof['titulo']}) — {dados_prof['registro']} | Data de Emissão: {data_emissao}\n")
     p_info.runs[0].bold = True
     run_norma = p_info.add_run("Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410 (Instalações Elétricas de Baixa Tensão)")
     run_norma.italic = True
@@ -248,7 +249,7 @@ logo_upload = st.sidebar.file_uploader("Envie a Logo para o Relatório (PNG/JPG)
 st.sidebar.markdown("---")
 st.sidebar.header("👨‍💻 Dados do Responsável Técnico")
 
-# Seleção Limpa da Categoria Profissional
+# Seleção de Categoria Profissional
 lista_categorias = [
     "Engenheiro(a) Eletricista",
     "Engenheiro(a) Civil",
@@ -264,9 +265,10 @@ if escolha_categoria == "Outro (Personalizado)":
 else:
     titulo_prof = escolha_categoria
 
-prof_nome = st.sidebar.text_input("Nome do Profissional", "Jefferson Barcellos Borges")
-prof_registro = st.sidebar.text_input("Registro (CREA / CAU / CFT)", "CREA/RJ 2026.000")
-prof_contato = st.sidebar.text_input("Contato / E-mail", "contato@empresa.com.br")
+# CAMPOS LIMPOS COM PLACEHOLDERS ORIENTATIVOS (SEM NOME FIXO DE FABRICAÇÃO)
+prof_nome = st.sidebar.text_input("Nome do Profissional", "", placeholder="Digite seu nome aqui")
+prof_registro = st.sidebar.text_input("Registro (CREA / CAU / CFT)", "", placeholder="Ex: CREA/RJ 000.000")
+prof_contato = st.sidebar.text_input("Contato / E-mail", "", placeholder="seu.email@empresa.com.br")
 
 TABELA_NORMA = {
     "Dormitórios / Suítes (Residencial)": 200,
@@ -278,7 +280,7 @@ TABELA_NORMA = {
 
 # Configuração de Gerenciamento de Ambientes Dinâmicos na mesma página
 st.subheader("1. Identificação Geral do Projeto")
-cli_nome = st.text_input("Cliente / Empreendimento", "Residência Unifamiliar")
+cli_nome = st.text_input("Cliente / Empreendimento", "", placeholder="Ex: Residência Unifamiliar ou Nome do Cliente")
 
 st.markdown("---")
 st.subheader("2. Gerenciamento de Ambientes do Projeto")
@@ -333,7 +335,6 @@ for idx, tab in enumerate(tabs):
             fluxo_lampada = st.number_input("Fluxo Luminoso da Luminária (lm)", value=2000, step=100, key=f"flux_{amb_atual['id']}")
             potencia_lampada = st.number_input("Potência Unitária da Luminária (W)", value=20, step=1, key=f"pot_{amb_atual['id']}")
             
-            # Guia Interativo/Seleção Auxiliada para Fatores de Utilização e Depreciação
             with st.expander("ℹ️ Ajuda: Como escolher o Fator de Utilização (u) e Depreciação (d)?"):
                 st.markdown("""
                 * **Fator de Utilização ($u$ - 0.1 a 0.9):** Representa a eficiência luminosa com base nas cores das superfícies e geometria.
@@ -460,8 +461,13 @@ for idx, tab in enumerate(tabs):
 st.markdown("---")
 st.subheader("📥 Emissão do Relatório Consolidado")
 
-dados_cliente = {"nome": cli_nome}
-dados_prof = {"titulo": titulo_prof, "nome": prof_nome, "registro": prof_registro, "contato": prof_contato}
+dados_cliente = {"nome": cli_nome if cli_nome else "Cliente / Empreendimento"}
+dados_prof = {
+    "titulo": titulo_prof, 
+    "nome": prof_nome if prof_nome else "[Nome do Profissional]", 
+    "registro": prof_registro if prof_registro else "[Registro Profissional]", 
+    "contato": prof_contato if prof_contato else "[Contato]"
+}
 
 if is_pro:
     docx_bytes = gerar_docx_lote(dados_cliente, dados_prof, lista_calculos_ambientes, logo_file=logo_upload)
@@ -483,4 +489,3 @@ else:
             use_container_width=True
         )
     st.info("🔒 Assine o **Plano PRO** para consolidar múltiplos ambientes em um único arquivo de relatório.")
-    
