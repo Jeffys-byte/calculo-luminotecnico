@@ -3,6 +3,7 @@ import pandas as pd
 import math
 import io
 import datetime
+from supabase import create_client, Client
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -11,16 +12,27 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SISTEMA DE LOGIN E CONTROLE DE ACESSO COM TESTE GRÁTIS DE 5 DIAS ---
+# --- CONEXÃO COM O SUPABASE USANDO OS SECRETS ---
+@st.cache_resource
+def init_supabase():
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Erro ao conectar com o Supabase: {e}")
+        return None
+
+supabase: Client = init_supabase()
+
+# --- SISTEMA DE AUTENTICAÇÃO VIA BANCO DE DADOS ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
-    if "modo_teste_ativo" not in st.session_state:
-        st.session_state.modo_teste_ativo = False
-    if "data_inicio_teste" not in st.session_state:
-        st.session_state.data_inicio_teste = None
+    if "usuario_email" not in st.session_state:
+        st.session_state.usuario_email = None
 
-    if not st.session_state.autenticado and not st.session_state.modo_teste_ativo:
+    if not st.session_state.autenticado:
         st.markdown("## 🔐 Área Restrita - Acesso ao Sistema Luminotécnica")
         st.markdown("Faça login com sua conta profissional, teste gratuitamente por 5 dias ou assine um plano.")
         
@@ -28,70 +40,86 @@ def verificar_autenticacao():
         
         with tab_login:
             with st.form("form_login"):
-                email_input = st.text_input("E-mail")
-                senha_input = st.text_input("Senha", type="password")
+                email_input = st.text_input("E-mail").strip().lower()
+                senha_input = st.text_input("Senha", type="password").strip()
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    if email_input.strip() == "jefkar27@gmail.com" and senha_input.strip() == "255859":
-                        st.session_state.autenticado = True
-                        st.session_state.usuario_email = email_input
-                        st.session_state.plano_ativo = "Acesso Vitalício / Mestre"
-                        st.session_state.permissao_relatorio = True
-                        st.success("Login realizado com sucesso!")
-                        st.rerun()
+                    if supabase:
+                        # Consulta usuário no Supabase
+                        response = supabase.table("usuarios").select("*").eq("email", email_input).execute()
+                        usuarios = response.data
+                        
+                        if usuarios and usuarios[0]["senha"] == senha_input:
+                            user_data = usuarios[0]
+                            st.session_state.autenticado = True
+                            st.session_state.usuario_email = user_data["email"]
+                            st.session_state.plano_ativo = user_data["plano"]
+                            st.session_state.permissao_relatorio = user_data["permissao_relatorio"]
+                            st.session_state.data_cadastro = user_data["data_cadastro"]
+                            
+                            # Registra log de acesso no banco
+                            supabase.table("acessos_log").insert({"email": user_data["email"]}).execute()
+                            
+                            st.success("Login realizado com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("E-mail ou senha incorretos.")
                     else:
-                        st.error("E-mail ou senha incorretos.")
+                        st.error("Erro de conexão com o banco de dados.")
                         
         with tab_teste:
             st.markdown("### 🌟 Ative seu Teste Grátis de 5 Dias")
-            st.markdown("Tenha acesso completo aos **cálculos de luminárias** e ao **cadastro de clientes** por 5 dias (Emissão de relatórios em Word indisponível no modo de teste).")
+            st.markdown("Tenha acesso completo aos **cálculos de luminárias** por 5 dias.")
             
             with st.form("form_teste_gratis"):
-                email_teste = st.text_input("Seu E-mail para cadastro rápido")
+                email_teste = st.text_input("Seu E-mail para cadastro rápido").strip().lower()
+                senha_teste = st.text_input("Crie uma Senha", type="password").strip()
                 btn_ativar_teste = st.form_submit_button("Ativar Teste Grátis de 5 Dias")
                 
                 if btn_ativar_teste:
-                    if email_teste.strip() != "":
-                        st.session_state.modo_teste_ativo = True
-                        st.session_state.usuario_email = email_teste
-                        st.session_state.data_inicio_teste = datetime.date.today()
-                        st.session_state.plano_ativo = "Teste Grátis (5 Dias)"
-                        st.session_state.permissao_relatorio = False
-                        st.success("Teste grátis ativado com sucesso por 5 dias!")
-                        st.rerun()
+                    if email_teste != "" and senha_teste != "":
+                        if supabase:
+                            existe = supabase.table("usuarios").select("email").eq("email", email_teste).execute()
+                            if existe.data:
+                                st.warning("Este e-mail já possui cadastro. Faça login na aba ao lado.")
+                            else:
+                                novo_usuario = {
+                                    "email": email_teste,
+                                    "senha": senha_teste,
+                                    "plano": "Teste Grátis (5 Dias)",
+                                    "permissao_relatorio": False
+                                }
+                                supabase.table("usuarios").insert(novo_usuario).execute()
+                                st.success("Teste grátis criado com sucesso! Vá na aba 'Fazer Login' para entrar.")
                     else:
-                        st.error("Por favor, informe um e-mail válido.")
+                        st.error("Preencha todos os campos.")
 
         with tab_planos:
             st.markdown("### Escolha o seu plano de acesso profissional:")
             col_p1, col_p2 = st.columns(2)
-            
             with col_p1:
-                st.markdown("#### 🌟 Plano Semestral")
-                st.markdown("**6 Meses de Acesso Completo**")
-                st.markdown("### R$ 69,00")
-                st.markdown("- Todos os cálculos\n- Emissão de relatórios em Word\n- Cadastro de Clientes")
-                if st.button("Assinar Plano Semestral", use_container_width=True):
-                    st.info("Entre em contato com o suporte ou utilize o login mestre para liberação imediata.")
-                    
+                st.markdown("#### 🌟 Plano Semestral (R$ 69,00)")
+                st.markdown("- Todos os cálculos\n- Relatórios em Word\n- Cadastro de Clientes")
             with col_p2:
-                st.markdown("#### 🚀 Plano Anual")
-                st.markdown("**1 Ano de Acesso Completo**")
-                st.markdown("### R$ 99,00")
-                st.markdown("- **Melhor Custo-Benefício**\n- Todos os recursos liberados\n- Suporte prioritário")
-                if st.button("Assinar Plano Anual", use_container_width=True):
-                    st.info("Entre em contato com o suporte ou utilize o login mestre para liberação imediata.")
+                st.markdown("#### 🚀 Plano Anual (R$ 99,00)")
+                st.markdown("- Todos os recursos liberados\n- Suporte prioritário")
+            st.info("Para assinar, entre em contato com o suporte para liberação imediata do seu e-mail no sistema.")
                     
         return False
         
-    # Verificar expiração do teste grátis (5 dias)
-    if st.session_state.modo_teste_ativo and st.session_state.data_inicio_teste:
-        dias_decorridos = (datetime.date.today() - st.session_state.data_inicio_teste).days
-        if dias_decorridos > 5:
-            st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Por favor, faça a assinatura de um plano para continuar.")
-            st.session_state.modo_teste_ativo = False
-            st.rerun()
+    # Validação do período de teste de 5 dias via banco de dados
+    if st.session_state.get("plano_ativo") == "Teste Grátis (5 Dias)":
+        data_cad_str = str(st.session_state.get("data_cadastro", ""))[:10]
+        try:
+            data_cad = datetime.datetime.strptime(data_cad_str, "%Y-%m-%d").date()
+            dias_decorridos = (datetime.date.today() - data_cad).days
+            if dias_decorridos > 5:
+                st.warning("⚠️ O seu período de teste grátis de 5 dias expirou. Entre em contato para assinar um plano.")
+                st.session_state.autenticado = False
+                st.rerun()
+        except Exception:
+            pass
 
     return True
 
@@ -119,7 +147,7 @@ if "banco_clientes" not in st.session_state:
         {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
     ]
 
-# --- BANCO COMPLETO DE LUMINÁRIAS E PAINÉIS ---
+# --- BANCO DE LUMINÁRIAS ---
 if "banco_luminarias" not in st.session_state:
     st.session_state.banco_luminarias = [
         {"Fabricante": "Ecolume", "Modelo": "Painel LED 24W Redondo Sobrepor", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
@@ -129,7 +157,6 @@ if "banco_luminarias" not in st.session_state:
         {"Fabricante": "Taschibra", "Modelo": "Painel LED Slim 12W Quadrado", "Lumens": 960, "Potencia": 12.0, "Tipo": "Painel/Luminária"},
     ]
 
-# Banco específico para Fitas LED (Acesso PRO)
 if "banco_fitas" not in st.session_state:
     st.session_state.banco_fitas = [
         {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20", "Lumens": 900, "Potencia": 10.0},
@@ -186,7 +213,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     r_t.font.color.rgb = COR_TEXTO_TITULO
 
     p_sub = doc.add_paragraph()
-    p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente.get('nome', 'Cliente Geral')} | Método dos Lúmens\n")
+    p_sub.add_run(f"Cliente / Empreendimento: {dados_cliente.get('Nome', 'Cliente Geral')} | Método dos Lúmens\n")
     p_sub.add_run(f"Responsável Técnico: {dados_profissional.get('nome', 'Não informado')} — Registro: {dados_profissional.get('registro', 'Não informado')} | Data de Emissão: {data_atual_str}\n")
     p_sub.add_run(f"Norma de Referência: NBR ISO/CIE 8995-1 & NBR 5410")
     p_sub.runs[0].font.size = Pt(9)
@@ -205,7 +232,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
         r_amb.font.size = Pt(11.5)
         r_amb.font.color.rgb = COR_TEXTO_TITULO
 
-        # 1. Identificação e Dados Geométricos
         h1 = doc.add_heading(level=2)
         r_h1 = h1.add_run("1. Identificação e Dados Geométricos")
         r_h1.font.size = Pt(10.5)
@@ -254,7 +280,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
-        # 2. Parâmetros Luminotécnicos
         h2 = doc.add_heading(level=2)
         r_h2 = h2.add_run("2. Parâmetros Luminotécnicos")
         r_h2.font.size = Pt(10.5)
@@ -299,7 +324,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
-        # 3. Resultados do Dimensionamento
         h3 = doc.add_heading(level=2)
         r_h3 = h3.add_run("3. Resultados do Dimensionamento e Espaçamentos")
         r_h3.font.size = Pt(10.5)
@@ -351,7 +375,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
-        # 4. Parecer Técnico
         h4 = doc.add_heading(level=2)
         r_h4 = h4.add_run("4. Parecer Técnico")
         r_h4.font.size = Pt(10.5)
@@ -368,13 +391,12 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- INTERFACE PRINCIPAL DO APLICATIVO ---
+# --- INTERFACE PRINCIPAL ---
 st.title("💡 Luminotécnica Profissional")
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')} ({st.session_state.get('plano_ativo', 'Plano Ativo')})")
 
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
-    st.session_state.modo_teste_ativo = False
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -387,6 +409,21 @@ prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_no
 prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
 prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
 prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
+
+# --- PAINEL ADMINISTRATIVO (Visível apenas para o seu e-mail mestre) ---
+if st.session_state.get("usuario_email") == "jefkar27@gmail.com":
+    with st.sidebar.expander("📊 Painel Administrativo (Admin)"):
+        st.markdown("### Métricas de Acesso")
+        if supabase:
+            res_logs = supabase.table("acessos_log").select("*", count="exact").execute()
+            total_acessos = res_logs.count if res_logs.count is not None else 0
+            st.metric("Total de Acessos Registrados", total_acessos)
+            
+            res_users = supabase.table("usuarios").select("email, plano, data_cadastro").execute()
+            if res_users.data:
+                st.markdown("**Usuários Cadastrados:**")
+                df_users = pd.DataFrame(res_users.data)
+                st.dataframe(df_users, hide_index=True)
 
 st.markdown("---")
 
@@ -415,16 +452,12 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
             else:
                 st.error("O nome do cliente é obrigatório.")
 
-# Seleção do Cliente para o Projeto Atual
 lista_nomes_clientes = [c["Nome"] for c in st.session_state.banco_clientes]
 cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
-
-# Recuperar dados do cliente selecionado
 cliente_dados_obj = next((c for c in st.session_state.banco_clientes if c["Nome"] == cliente_selecionado_nome), st.session_state.banco_clientes[0])
 
 st.markdown("---")
 
-# --- NAVEGAÇÃO POR ABAS (ÁREA DE FITAS LED E CÁLCULO) ---
 aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (Acesso PRO)"])
 
 with aba_principal:
@@ -609,8 +642,6 @@ with aba_principal:
 
 with aba_fitas:
     st.markdown("### ✨ Projeto de Fitas LED Lineares (Acesso Restrito / PRO)")
-    st.markdown("Esta seção é exclusiva para contas PRO e assinantes.")
-    
     col_fita_1, col_fita_2 = st.columns(2)
     with col_fita_1:
         fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, help="Comprimento linear total onde a fita LED será instalada.", key="fita_comp_m")
@@ -631,27 +662,22 @@ with aba_fitas:
 
 st.subheader("3. Emissão de Relatório Luminotécnico (Word)")
 
-# VERIFICAÇÃO DE PERMISSÃO PARA O RELATÓRIO (BLOQUEADO NO TESTE GRÁTIS DE 5 DIAS)
-if st.session_state.get("modo_teste_ativo", False):
-    st.warning("🔒 **Recurso Bloqueado no Teste Grátis:** A emissão e o download do relatório em Word estão disponíveis apenas nos planos assinados ou na conta master. Você pode realizar todos os cálculos livremente durante os 5 dias de teste.")
-else:
-    if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
-        dados_prof_dict = {
-            "nome": prof_nome if prof_nome else "Não informado",
-            "registro": prof_registro if prof_registro else "Não informado",
-            "celular": prof_celular if prof_celular else "Não informado",
-            "email": prof_email if prof_email else "Não informado"
-        }
-        
-        logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-        
-        arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-        
-        st.success("Relatório Luminotécnico gerado com sucesso!")
-        st.download_button(
-            label="📥 Baixar Relatório Luminotécnico (.docx)",
-            data=arquivo_docx_bytes,
-            file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
-        )
+if st.button("📄 Gerar Relatório Luminotécnico Consolidado (.docx)", use_container_width=True):
+    dados_prof_dict = {
+        "nome": prof_nome if prof_nome else "Não informado",
+        "registro": prof_registro if prof_registro else "Não informado",
+        "celular": prof_celular if prof_celular else "Não informado",
+        "email": prof_email if prof_email else "Não informado"
+    }
+    
+    logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
+    arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+    
+    st.success("Relatório Luminotécnico gerado com sucesso!")
+    st.download_button(
+        label="📥 Baixar Relatório Luminotécnico (.docx)",
+        data=arquivo_docx_bytes,
+        file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True
+    )
