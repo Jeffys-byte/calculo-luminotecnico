@@ -387,11 +387,28 @@ def gerar_docx_lote(dados_cliente, dados_prof, lista_dados_ambientes, logo_file=
     buffer.seek(0)
     return buffer.getvalue()
 
-# --- BARRA LATERAL: AUTENTICAÇÃO E LOGO COM ALTO CONTRASTE (FUNDO ESCURO) ---
+# --- APLICAÇÃO DE IMAGEM DE FUNDO NA TELA DE LOGIN (ÁREA PRINCIPAL) ---
+if not st.session_state["autenticado"]:
+    # Cole aqui o link direto da imagem (ex: URL pública ou hospedada) ou substitua pelo link da sua foto da sala
+    url_imagem_fundo = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1600&auto=format&fit=crop"
+    
+    css_fundo = f"""
+    <style>
+    /* Aplica a imagem de fundo com efeito escurecido/elegante na área principal (lado direito) */
+    .stMain {{
+        background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url("{url_imagem_fundo}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }}
+    </style>
+    """
+    st.markdown(css_fundo, unsafe_allow_html=True)
+
+# --- BARRA LATERAL: AUTENTICAÇÃO E LOGO ---
 st.sidebar.header("🔐 Portal do Cliente")
 
 if not st.session_state["autenticado"]:
-    # Logo SVG com cores claras/brancas otimizadas para fundos escuros
     logo_svg_html = """
     <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220" width="100%" height="110">
@@ -401,7 +418,6 @@ if not st.session_state["autenticado"]:
             .spark-stroke { fill: none; stroke: #FFD166; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
           </style>
         </defs>
-        <!-- Ícone Minimalista com alto contraste -->
         <g transform="translate(190, 5)">
           <path class="spark-stroke" d="M 60 20 L 60 5" />
           <path class="spark-stroke" d="M 90 30 L 100 20" />
@@ -483,6 +499,14 @@ if not st.session_state["autenticado"]:
                 else:
                     st.warning("Preencha todos os campos para redefinir.")
                 
+    # Mensagem de Boas-vindas opcional no espaço direito antes de logar
+    st.markdown("""
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; color: white; padding: 20px;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">⚡ Sistema Luminotécnico Profissional</h1>
+        <p style="font-size: 1.2rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); max-width: 600px;">Faça login na barra lateral esquerda para acessar o painel completo de cálculo de lumens, fitas LED, spots e geração de laudos técnicos em Word.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.stop()
 
 # Se já estiver logado:
@@ -794,3 +818,4 @@ if st.button("Gerar e Baixar Relatório Completo (.docx)", use_container_width=T
         use_container_width=True,
         key="btn_download_docx_final"
     )
+    
