@@ -534,6 +534,15 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
                 st.success(f"Usuário {email_alvo} promovido a Assinante PRO com acesso livre!")
                 st.rerun()
 
+        if st.button("🚫 Revogar PRO (Voltar para Padrão/Expirado)", use_container_width=True):
+            conn = sqlite3.connect('luminotecnica.db')
+            cursor = conn.cursor()
+            cursor.execute("UPDATE usuarios SET assinante = 0 WHERE email = ?", (email_alvo,))
+            conn.commit()
+            conn.close()
+            st.warning(f"Status PRO de {email_alvo} revogado com sucesso!")
+            st.rerun()
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏢 Logotipo do Projeto ℹ️")
 logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"], help="Envie o logotipo da sua empresa para customizar os relatórios finais.")
