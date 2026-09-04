@@ -33,7 +33,6 @@ def init_db():
         )
     ''')
     
-    # Garante compatibilidade caso o banco já exista sem as colunas novas
     cursor.execute("PRAGMA table_info(usuarios)")
     colunas = [col[1] for col in cursor.fetchall()]
     if "token_recuperacao" not in colunas:
@@ -68,12 +67,11 @@ init_db()
 
 # --- FUNÇÃO DE ENVIO DE E-MAIL REAL ---
 def enviar_email_token(destinatario, token):
-    # ATENÇÃO: Configure aqui o seu e-mail de disparo e a Senha de Aplicativo gerada no seu provedor (ex: Gmail)
-    # Se estiver usando Streamlit Cloud, o ideal é usar st.secrets["EMAIL_USER"] e st.secrets["EMAIL_PASS"]
-    remetente = "seu_email@gmail.com"
-    senha_app = "sua_senha_de_aplicativo"  
+    # INSIRA ABAIXO O SEU E-MAIL REAL E A SENHA DE APLICATIVO DO GMAIL
+    remetente = "jeffys.job@gmail.com"  # Coloque seu e-mail aqui
+    senha_app = "SUA_SENHA_DE_APLICATIVO_AQUI"  # Coloque a senha de 16 dígitos gerada no Google aqui
     
-    # Exemplo puxando dos secrets do Streamlit (caso configure lá):
+    # Se configurado via secrets do Streamlit, ele tem prioridade:
     if "EMAIL_USER" in st.secrets and "EMAIL_PASS" in st.secrets:
         remetente = st.secrets["EMAIL_USER"]
         senha_app = st.secrets["EMAIL_PASS"]
@@ -95,7 +93,6 @@ def enviar_email_token(destinatario, token):
     msg.attach(MIMEText(corpo, 'plain'))
 
     try:
-        # Configuração para Gmail (Porta 587 com TLS)
         servidor = smtplib.SMTP('smtp.gmail.com', 587)
         servidor.starttls()
         servidor.login(remetente, senha_app)
@@ -155,14 +152,6 @@ def atualizar_senha_db(email, nova_senha):
     conn.commit()
     conn.close()
 
-def excluir_usuario_db(email):
-    conn = sqlite3.connect('luminotecnica.db')
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM clientes WHERE email_usuario = ?", (email,))
-    cursor.execute("DELETE FROM usuarios WHERE email = ?", (email,))
-    conn.commit()
-    conn.close()
-
 def gerar_token_recuperacao(email):
     token = str(random.randint(100000, 999999))
     conn = sqlite3.connect('luminotecnica.db')
@@ -171,21 +160,6 @@ def gerar_token_recuperacao(email):
     conn.commit()
     conn.close()
     return token
-
-def adicionar_cliente_db(email_usuario, nome, email_cli, telefone, cidade):
-    conn = sqlite3.connect('luminotecnica.db')
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO clientes (email_usuario, nome, email_cli, telefone, cidade) VALUES (?, ?, ?, ?, ?)",
-                   (email_usuario, nome, email_cli, telefone, cidade))
-    conn.commit()
-    conn.close()
-
-def listar_todos_usuarios_db():
-    conn = sqlite3.connect('luminotecnica.db')
-    df_users = pd.read_sql_query("SELECT email, criacao, tipo, assinante FROM usuarios", conn)
-    df_cli = pd.read_sql_query("SELECT email_usuario, nome, email_cli, telefone, cidade FROM clientes", conn)
-    conn.close()
-    return df_users, df_cli
 
 def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
     if img_bytes:
@@ -260,7 +234,7 @@ def verificar_autenticacao():
                                 if sucesso_envio:
                                     st.success(f"Código de segurança enviado com sucesso para **{email_rec}**! Verifique sua caixa de entrada ou spam.")
                                 else:
-                                    st.error("Erro ao disparar o e-mail. Verifique as configurações de SMTP no código.")
+                                    st.error("Erro ao disparar o e-mail. Verifique se o e-mail e a senha de aplicativo estão corretos.")
                             else:
                                 st.error("Este e-mail não está cadastrado.")
                         else:
@@ -328,5 +302,3 @@ def verificar_autenticacao():
 
 if not verificar_autenticacao():
     st.stop()
-
-# --- Restante do código do aplicativo (cálculos, relatórios, etc.) permanece inalterado ---
