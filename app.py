@@ -210,7 +210,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
         r_amb.font.size = Pt(11.5)
         r_amb.font.color.rgb = COR_TEXTO_TITULO
 
-        # Tabela unificada resumida por ambiente para o Word
         t1 = doc.add_table(rows=12, cols=4)
         t1.alignment = WD_TABLE_ALIGNMENT.CENTER
         t1.autofit = False
@@ -627,6 +626,7 @@ with aba_fitas:
 
 st.subheader("3. Emissão de Relatório Luminotécnico")
 
+user_info_atual = st.session_state.usuarios_cadastrados.get(email_atual, {"tipo": "cliente", "assinante": False})
 is_admin_or_subscriber = (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False))
 
 if not is_admin_or_subscriber:
