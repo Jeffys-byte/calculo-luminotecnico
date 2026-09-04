@@ -21,7 +21,6 @@ def carregar_banco():
         try:
             with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
                 dados = json.load(f)
-                # Converte de volta a string de data para objeto datetime
                 for email, info in dados.items():
                     if "criacao" in info:
                         try:
@@ -32,7 +31,6 @@ def carregar_banco():
         except Exception:
             pass
     
-    # Banco padrão inicial se o arquivo não existir
     return {
         "jefkar27@gmail.com": {
             "senha": "123", 
@@ -46,7 +44,6 @@ def carregar_banco():
     }
 
 def salvar_banco(dados):
-    # Prepara cópia convertendo datetime para string (JSON não serializa datetime nativamente)
     dados_para_salvar = {}
     for email, info in dados.items():
         info_copia = info.copy()
@@ -675,24 +672,27 @@ if not is_admin_or_subscriber:
     st.warning("🔒 **Recurso Exclusivo para Assinantes:** O período de teste permite realizar os cálculos na tela, mas a geração e o download dos relatórios oficiais (.docx e .pdf) exigem uma assinatura ativa. Vá na aba **'Assinar (R$ 19,90/mês)'** no topo da página para liberar!")
 else:
     if st.button("📄 Gerar Relatório Luminotécnico (.docx)", use_container_width=True):
-        dados_prof_dict = {
-            "nome": prof_nome if prof_nome else "Não informado",
-            "registro": prof_registro if prof_registro else "Não informado",
-            "celular": prof_celular if prof_celular else "Não informado",
-            "email": prof_email if prof_email else "Não informado"
-        }
-        
-        logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-        arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-        
-        st.success("Relatório gerado com sucesso!")
-        st.download_button(
-            label="📥 Baixar Relatório em Word (.docx)",
-            data=arquivo_docx_bytes,
-            file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
-        )
+        try:
+            dados_prof_dict = {
+                "nome": prof_nome if prof_nome else "Não informado",
+                "registro": prof_registro if prof_registro else "Não informado",
+                "celular": prof_celular if prof_celular else "Não informado",
+                "email": prof_email if prof_email else "Não informado"
+            }
+            
+            logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
+            arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+            
+            st.success("Relatório gerado com sucesso!")
+            st.download_button(
+                label="📥 Baixar Relatório em Word (.docx)",
+                data=arquivo_docx_bytes,
+                file_name=f"Relatorio_Luminotecnico_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Erro ao gerar o relatório: {e}")
 
     st.markdown("""
         <div style="margin-top: 15px; text-align: center;">
