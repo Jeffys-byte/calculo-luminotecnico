@@ -5,6 +5,7 @@ import io
 import datetime
 import base64
 import sqlite3
+import random
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -23,7 +24,9 @@ def init_db():
             senha TEXT NOT NULL,
             criacao TEXT NOT NULL,
             tipo TEXT NOT NULL,
-            assinante INTEGER DEFAULT 0
+            assinante INTEGER DEFAULT 0,
+            token_recuperacao TEXT,
+            token_expira TEXT
         )
     ''')
     cursor.execute('''
@@ -54,13 +57,13 @@ init_db()
 def carregar_usuario_db(email):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT senha, criacao, tipo, assinante FROM usuarios WHERE email = ?", (email,))
+    cursor.execute("SELECT senha, criacao, tipo, assinante, token_recuperacao FROM usuarios WHERE email = ?", (email,))
     row = cursor.fetchone()
     if not row:
         conn.close()
         return None
     
-    senha, criacao_str, tipo, assinante = row
+    senha, criacao_str, tipo, assinante, token_rec = row
     try:
         criacao = datetime.datetime.strptime(criacao_str, "%Y-%m-%d %H:%M:%S")
     except:
@@ -78,6 +81,7 @@ def carregar_usuario_db(email):
         "criacao": criacao,
         "tipo": tipo,
         "assinante": bool(assinante),
+        "token_recuperacao": token_rec,
         "banco_clientes": banco_clientes
     }
 
@@ -95,9 +99,28 @@ def salvar_usuario_db(email, senha, tipo="cliente", assinante=0):
 def atualizar_senha_db(email, nova_senha):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
-    cursor.execute("UPDATE usuarios SET senha = ? WHERE email = ?", (nova_senha, email))
+    cursor.execute("UPDATE usuarios SET senha = ?, token_recuperacao = NULL WHERE email = ?", (nova_senha, email))
     conn.commit()
     conn.close()
+
+def excluir_usuario_db(email):
+    conn = sqlite3.connect('luminotecnica.db')
+    cursor = conn.cursor()
+    # Remove primeiro os clientes vinculados ao usuário para manter a integridade
+    cursor.execute("DELETE FROM clientes WHERE email_usuario = ?", (email,))
+    # Remove o usuário
+    cursor.execute("DELETE FROM usuarios WHERE email = ?", (email,))
+    conn.commit()
+    conn.close()
+
+def gerar_token_recuperacao(email):
+    token = str(random.randint(100000, 999999))
+    conn = sqlite3.connect('luminotecnica.db')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET token_recuperacao = ? WHERE email = ?", (token, email))
+    conn.commit()
+    conn.close()
+    return token
 
 def adicionar_cliente_db(email_usuario, nome, email_cli, telefone, cidade):
     conn = sqlite3.connect('luminotecnica.db')
@@ -173,21 +196,43 @@ def verificar_autenticacao():
                     else:
                         st.error("E-mail ou senha incorretos, ou usuário não encontrado.")
 
-            with st.expander("🔑 Esqueci / Redefinir minha senha"):
-                with st.form("form_esqueci_senha"):
-                    email_rec = st.text_input("Confirme seu e-mail cadastrado").strip().lower()
+            with st.expander("🔑 Esqueci / Redefinir minha senha com Token"):
+                st.markdown("Insira seu e-mail para solicitar um **Código de Segurança (Token)** de redefinição.")
+                with st.form("form_pedir_token"):
+                    email_rec = st.text_input("E-mail cadastrado para recuperação").strip().lower()
+                    btn_gerar_token = st.form_submit_button("Gerar Código de Segurança")
+                    
+                    if btn_gerar_token:
+                        if email_rec:
+                            if carregar_usuario_db(email_rec):
+                                token_criado = gerar_token_recuperacao(email_rec)
+                                st.success(f"Código de segurança gerado com sucesso! (Simulação de envio): **{token_criado}**")
+                            else:
+                                st.error("Este e-mail não está cadastrado.")
+                        else:
+                            st.error("Informe o e-mail.")
+
+                st.markdown("---")
+                st.markdown("Já possui o código? Digite-o abaixo junto com a nova senha:")
+                with st.form("form_confirmar_token"):
+                    email_conf = st.text_input("Confirme seu e-mail").strip().lower()
+                    token_dig = st.text_input("Código de Segurança (Token de 6 dígitos)").strip()
                     nova_senha_rec = st.text_input("Digite a nova senha", type="password").strip()
-                    btn_redefinir = st.form_submit_button("Atualizar Minha Senha")
+                    btn_redefinir = st.form_submit_button("Validar e Atualizar Senha")
                     
                     if btn_redefinir:
-                        if email_rec and nova_senha_rec:
-                            if carregar_usuario_db(email_rec):
-                                atualizar_senha_db(email_rec, nova_senha_rec)
-                                st.success("Senha redefinida com sucesso! Volte ao formulário acima e faça login com a nova senha.")
+                        if email_conf and token_dig and nova_senha_rec:
+                            usr_check = carregar_usuario_db(email_conf)
+                            if usr_check:
+                                if usr_check["token_recuperacao"] == token_dig:
+                                    atualizar_senha_db(email_conf, nova_senha_rec)
+                                    st.success("Senha redefinida com segurança! Faça login na aba ao lado com a nova senha.")
+                                else:
+                                    st.error("Código de segurança (Token) inválido ou incorreto.")
                             else:
-                                st.error("Este e-mail não está cadastrado no sistema.")
+                                st.error("E-mail não encontrado.")
                         else:
-                            st.error("Preencha todos os campos para redefinir a senha.")
+                            st.error("Preencha todos os campos.")
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
@@ -532,7 +577,7 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
         st.dataframe(df_c, use_container_width=True)
         
         st.markdown("---")
-        st.markdown("🎁 **Liberar Acesso / Bonificação**")
+        st.markdown("🎁 **Gerenciar Usuário / Acessos / Exclusão**")
         email_alvo = st.selectbox("Selecione o e-mail do usuário", df_u["email"].tolist() if not df_u.empty else [], key="admin_email_alvo")
         
         col_pa1, col_pa2 = st.columns(2)
@@ -565,6 +610,16 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
             conn.close()
             st.warning(f"Status PRO de {email_alvo} revogado com sucesso!")
             st.rerun()
+
+        st.markdown("---")
+        # Botão com confirmação para exclusão de usuário
+        if st.button("🗑️ Excluir Usuário Selecionado do Banco", use_container_width=True):
+            if email_alvo == "jefkar27@gmail.com":
+                st.error("Não é permitido excluir o usuário Administrador principal do sistema!")
+            else:
+                excluir_usuario_db(email_alvo)
+                st.success(f"Usuário {email_alvo} excluído com sucesso do banco de dados!")
+                st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏢 Logotipo do Projeto ℹ️")
