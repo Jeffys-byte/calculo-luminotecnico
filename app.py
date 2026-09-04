@@ -480,23 +480,17 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
 
 st.title("💡 Luminotécnica Profissional")
 
-# --- BARRA DE STATUS E BOTÃO DE UPGRADE PARA CONTAS DE TESTE ---
+# --- BARRA DE STATUS E BOTÃO DE UPGRADE DIRETO PARA CONTAS DE TESTE ---
 if user_info_atual and user_info_atual["tipo"] != "admin" and not user_info_atual.get("assinante", False):
     agora = datetime.datetime.now()
     horas_decorridas = (agora - user_info_atual["criacao"]).total_seconds() / 3600
     horas_restantes = max(0, 24 - horas_decorridas)
     
-    st.info(f"⏳ **Conta em Período de Teste Gratuito** | Restam aprox. **{horas_restantes:.1f} horas** de acesso.")
-    
-    with st.expander("🚀 Desbloqueie Acesso Ilimitado (Virar PRO - R$ 19,90/mês)"):
-        st.markdown("""
-            <div style="background-color: #1a202c; border: 2px solid #ffc107; padding: 15px; border-radius: 8px; text-align: center; color: white; margin-bottom: 10px;">
-                <h4 style="margin-top: 0; color: #ffc107;">Assinatura PRO Mensal</h4>
-                <p style="font-size: 14px; color: #cbd5e0; margin-bottom: 5px;">Tenha relatórios em PDF e Word ilimitados por apenas:</p>
-                <div style="font-size: 26px; font-weight: bold; color: #28a745; margin: 5px 0;">R$ 19,90 / mês</div>
-            </div>
-        """, unsafe_allow_html=True)
-        st.link_button("💳 Pagar com Mercado Pago Agora", "https://mpago.la/2sbQvQ9", use_container_width=True)
+    col_aviso, col_botao = st.columns([3, 1])
+    with col_aviso:
+        st.info(f"⏳ **Conta em Período de Teste Gratuito** | Restam aprox. **{horas_restantes:.1f} horas** de acesso.")
+    with col_botao:
+        st.link_button("🚀 Virar PRO (R$ 19,90)", "https://mpago.la/2sbQvQ9", use_container_width=True)
 
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')}")
 
@@ -513,6 +507,32 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
         st.dataframe(df_u, use_container_width=True)
         st.markdown("**Clientes:**")
         st.dataframe(df_c, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("🎁 **Liberar Acesso / Bonificação**")
+        email_alvo = st.selectbox("Selecione o e-mail do usuário", df_u["email"].tolist() if not df_u.empty else [], key="admin_email_alvo")
+        
+        col_pa1, col_pa2 = st.columns(2)
+        with col_pa1:
+            if st.button("🔄 Renovar Teste (24h)"):
+                conn = sqlite3.connect('luminotecnica.db')
+                cursor = conn.cursor()
+                agora_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute("UPDATE usuarios SET criacao = ? WHERE email = ?", (agora_str, email_alvo))
+                conn.commit()
+                conn.close()
+                st.success(f"Teste de {email_alvo} renovado por mais 24h!")
+                st.rerun()
+                
+        with col_pa2:
+            if st.button("⭐ Liberar como PRO"):
+                conn = sqlite3.connect('luminotecnica.db')
+                cursor = conn.cursor()
+                cursor.execute("UPDATE usuarios SET assinante = 1 WHERE email = ?", (email_alvo,))
+                conn.commit()
+                conn.close()
+                st.success(f"Usuário {email_alvo} promovido a Assinante PRO com acesso livre!")
+                st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏢 Logotipo do Projeto ℹ️")
@@ -853,4 +873,3 @@ else:
                 )
             except Exception as e:
                 st.error(f"Erro ao gerar PDF: {e}")
-                
