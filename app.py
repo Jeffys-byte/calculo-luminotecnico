@@ -4,65 +4,141 @@ import math
 import io
 import datetime
 import base64
-import json
+import sqlite3
 import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Luminotécnica Profissional",
+    page_title="Luminotécnica Profissional - Teste SQLite",
     page_icon="💡",
     layout="wide"
 )
 
-# --- SISTEMA DE PERSISTÊNCIA EM ARQUIVO JSON ---
-ARQUIVO_BANCO = "usuarios_db.json"
+# --- SISTEMA DE PERSISTÊNCIA COM SQLITE ---
+BANCO_DADOS_SQLITE = "luminotecnica_teste.db"
 
-def carregar_banco_dados():
-    if os.path.exists(ARQUIVO_BANCO):
-        try:
-            with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                # Converter datas de string de volta para datetime onde necessário
-                for email, info in dados.items():
-                    if "criacao" in info and isinstance(info["criacao"], str):
-                        try:
-                            info["criacao"] = datetime.datetime.fromisoformat(info["criacao"])
-                        except:
-                            info["criacao"] = datetime.datetime.now()
-                return dados
-        except Exception:
-            pass
+def inicializar_banco():
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    cursor = conn.cursor()
     
-    # Banco padrão inicial se o arquivo não existir
-    return {
-        "jefkar27@gmail.com": {
-            "senha": "123", 
-            "criacao": datetime.datetime.now() - datetime.timedelta(days=30),
-            "tipo": "admin",
-            "assinante": True,
-            "banco_clientes": [
-                {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
-            ]
-        }
-    }
+    # Tabela de Usuários
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            email TEXT PRIMARY KEY,
+            senha TEXT NOT NULL,
+            criacao TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            assinante INTEGER NOT NULL
+        )
+    ''')
+    
+    # Tabela de Clientes vinculados ao usuário
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_email TEXT,
+            nome TEXT,
+            email_cliente TEXT,
+            telefone TEXT,
+            cidade TEXT,
+            FOREIGN KEY (usuario_email) REFERENCES usuarios (email)
+        )
+    ''')
+    
+    # Inserir usuário Admin padrão se não existir
+    cursor.execute("SELECT * FROM usuarios WHERE email = ?", ("jefkar27@gmail.com",))
+    if not cursor.fetchone():
+        data_criacao_padrao = (datetime.datetime.now() - datetime.timedelta(days=30)).isoformat()
+        cursor.execute(
+            "INSERT INTO usuarios (email, senha, criacao, tipo, assinante) VALUES (?, ?, ?, ?, ?)",
+            ("jefkar27@gmail.com", "123", data_criacao_padrao, "admin", 1)
+        )
+        cursor.execute(
+            "INSERT INTO clientes (usuario_email, nome, email_cliente, telefone, cidade) VALUES (?, ?, ?, ?, ?)",
+            ("jefkar27@gmail.com", "Cliente Geral", "contato@clientegeral.com", "(21) 99999-9999", "Rio de Janeiro - RJ")
+        )
+        
+    conn.commit()
+    conn.close()
 
-def salvar_banco_dados():
-    # Prepara cópia serializável (convertendo datetime para string ISO)
-    dados_para_salvar = {}
-    for email, info in st.session_state.usuarios_cadastrados.items():
-        dados_para_salvar[email] = {
-            "senha": info["senha"],
-            "criacao": info["criacao"].isoformat() if isinstance(info["criacao"], datetime.datetime) else str(info["criacao"]),
-            "tipo": info["tipo"],
-            "assinante": info.get("assinante", False),
-            "banco_clientes": info.get("banco_clientes", [])
-        }
-    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
-        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
+inicializar_banco()
 
-# Inicializa o banco de dados na sessão a partir do arquivo JSON
-if "usuarios_cadastrados" not in st.session_state:
-    st.session_state.usuarios_cadastrados = carregar_banco_dados()
+def db_obter_usuario(email):
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT email, senha, criacao, tipo, assinante FROM usuarios WHERE email = ?", (email,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {
+            "email": row[0],
+            "senha": row[1],
+            "criacao": datetime.datetime.fromisoformat(row[2]),
+            "tipo": row[3],
+            "assinante": bool(row[4])
+        }
+    return None
+
+def db_salvar_usuario(email, senha, tipo="cliente", assinante=False):
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    cursor = conn.cursor()
+    agora_str = datetime.datetime.now().isoformat()
+    try:
+        cursor.execute(
+            "INSERT OR REPLACE INTO usuarios (email, senha, criacao, tipo, assinante) VALUES (?, ?, ?, ?, ?)",
+            (email, senha, agora_str, tipo, int(assinante))
+        )
+        cursor.execute(
+            "INSERT INTO clientes (usuario_email, nome, email_cliente, telefone, cidade) VALUES (?, ?, ?, ?, ?)",
+            (email, "Cliente Exemplo", "exemplo@email.com", "(21) 98888-8888", "Rio de Janeiro - RJ")
+        )
+        conn.commit()
+        sucesso = True
+    except Exception as e:
+        sucesso = False
+    conn.close()
+    return sucesso
+
+def db_obter_clientes(email):
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT nome, email_cliente, telefone, cidade FROM clientes WHERE usuario_email = ?", (email,))
+    rows = cursor.fetchall()
+    conn.close()
+    clientes = []
+    for r in rows:
+        clientes.append({
+            "Nome": r[0],
+            "Email": r[1],
+            "Telefone": r[2],
+            "Cidade": r[3]
+        })
+    if not clientes:
+        clientes = [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
+    return clientes
+
+def db_adicionar_cliente(email, nome, email_cli, tel_cli, cidade_cli):
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO clientes (usuario_email, nome, email_cliente, telefone, cidade) VALUES (?, ?, ?, ?, ?)",
+        (email, nome, email_cli, tel_cli, cidade_cli)
+    )
+    conn.commit()
+    conn.close()
+
+# FUNÇÕES EXCLUSIVAS PARA O PAINEL ADMIN
+def db_listar_todos_usuarios():
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    df = pd.read_sql_query("SELECT email, senha, criacao, tipo, assinante FROM usuarios", conn)
+    conn.close()
+    return df
+
+def db_listar_todos_clientes():
+    conn = sqlite3.connect(BANCO_DADOS_SQLITE)
+    df = pd.read_sql_query("SELECT usuario_email, nome, email_cliente, telefone, cidade FROM clientes", conn)
+    conn.close()
+    return df
 
 # --- FUNÇÃO DE FUNDO PERSONALIZADO (CSS / BASE64) ---
 def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
@@ -87,7 +163,7 @@ def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# --- SISTEMA DE AUTENTICAÇÃO, CADASTRO E TESTE DE 24H ---
+# --- SISTEMA DE AUTENTICAÇÃO ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
@@ -97,74 +173,59 @@ def verificar_autenticacao():
     if not st.session_state.autenticado:
         definir_fundo_personalizado_base64(url_imagem="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1920&auto=format&fit=crop")
         
-        st.markdown("<h2 style='text-align: center; color: #ffffff;'>🔐 Área Restrita - Luminotécnica Profissional</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #cbd5e0;'>Crie sua conta e ganhe <b>24 horas de teste gratuito</b>, ou faça login se já tiver cadastro.</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #ffffff;'>🔐 Área Restrita - Luminotécnica (Teste SQLite)</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #cbd5e0;'>Ambiente de Testes com Banco SQLite Local. Crie sua conta e ganhe <b>24 horas de teste gratuito</b>.</p>", unsafe_allow_html=True)
         
         tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 19,90/mês)"])
         
         with tab_login:
-            with st.form("form_login"):
+            with st.form("form_login_teste"):
                 email_input = st.text_input("E-mail cadastrado", value="").strip().lower()
                 senha_input = st.text_input("Senha", type="password", value="").strip()
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
-                    # Recarrega do JSON para garantir dados atualizados
-                    st.session_state.usuarios_cadastrados = carregar_banco_dados()
-                    if email_input in st.session_state.usuarios_cadastrados:
-                        user_data = st.session_state.usuarios_cadastrados[email_input]
+                    user_data = db_obter_usuario(email_input)
+                    if user_data and user_data["senha"] == senha_input:
                         agora = datetime.datetime.now()
                         tempo_criacao = user_data["criacao"]
-                        if isinstance(tempo_criacao, str):
-                            tempo_criacao = datetime.datetime.fromisoformat(tempo_criacao)
-                            
                         horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
                         
-                        if user_data["tipo"] == "admin" or horas_decorridas <= 24 or user_data.get("assinante", False):
+                        if user_data["tipo"] == "admin" or horas_decorridas <= 24 or user_data["assinante"]:
                             st.session_state.autenticado = True
                             st.session_state.usuario_email = email_input
                             st.success("Login realizado com sucesso!")
                             st.rerun()
                         else:
-                            st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 19,90/mês.")
+                            st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando.")
                     else:
-                        st.error("E-mail não encontrado. Crie sua conta na aba ao lado!")
+                        st.error("E-mail ou senha incorretos, ou usuário não encontrado.")
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
-            st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos.")
-            
-            with st.form("form_cadastro"):
+            with st.form("form_cadastro_teste"):
                 novo_email = st.text_input("Seu E-mail principal", value="").strip().lower()
                 nova_senha = st.text_input("Crie uma Senha", type="password", value="").strip()
                 btn_cadastrar = st.form_submit_button("Criar Conta e Iniciar Teste Grátis")
                 
                 if btn_cadastrar:
                     if novo_email and nova_senha:
-                        st.session_state.usuarios_cadastrados = carregar_banco_dados()
-                        if novo_email in st.session_state.usuarios_cadastrados:
+                        if db_obter_usuario(novo_email):
                             st.warning("Este e-mail já está cadastrado. Faça login na primeira aba.")
                         else:
-                            st.session_state.usuarios_cadastrados[novo_email] = {
-                                "senha": nova_senha,
-                                "criacao": datetime.datetime.now(),
-                                "tipo": "cliente",
-                                "assinante": False,
-                                "banco_clientes": [
-                                    {"Nome": "Cliente Exemplo", "Email": "exemplo@email.com", "Telefone": "(21) 98888-8888", "Cidade": "Rio de Janeiro - RJ"}
-                                ]
-                            }
-                            salvar_banco_dados() # Salva permanentemente no JSON
-                            st.session_state.autenticado = True
-                            st.session_state.usuario_email = novo_email
-                            st.success("Conta criada com sucesso! Seu teste de 24 horas começou.")
-                            st.rerun()
+                            sucesso = db_salvar_usuario(novo_email, nova_senha, tipo="cliente", assinante=False)
+                            if sucesso:
+                                st.session_state.autenticado = True
+                                st.session_state.usuario_email = novo_email
+                                st.success("Conta criada com sucesso no SQLite! Seu teste de 24 horas começou.")
+                                st.rerun()
+                            else:
+                                st.error("Erro ao salvar usuário no banco SQLite.")
                     else:
                         st.error("Preencha todos os campos para criar a conta.")
 
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
-            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios.")
             st.info("💡 **Apenas R$ 19,90 / mês** — Cancele quando quiser.")
             link_mercado_pago = "https://mpago.la/2sbQvQ9"
             st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
@@ -177,14 +238,22 @@ if not verificar_autenticacao():
     st.stop()
 
 email_atual = st.session_state.usuario_email
-if email_atual in st.session_state.usuarios_cadastrados:
-    if "banco_clientes" not in st.session_state.usuarios_cadastrados[email_atual]:
-        st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"] = [
-            {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
-        ]
-    banco_clientes_usuario = st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"]
-else:
-    banco_clientes_usuario = [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
+usuario_logado_obj = db_obter_usuario(email_atual)
+eh_admin = usuario_logado_obj and usuario_logado_obj["tipo"] == "admin"
+
+banco_clientes_usuario = db_obter_clientes(email_atual)
+
+# --- SE O USUÁRIO FOR ADMIN, EXIBIR PAINEL DE CONTROLE NO TOPO ---
+if eh_admin:
+    with st.expander("👑 PAINEL DE CONTROLE ADMINISTRATIVO (Ver Logins e Cadastros)", expanded=False):
+        st.markdown("### 👥 Usuários Cadastrados no Banco SQLite")
+        df_usuarios = db_listar_todos_usuarios()
+        st.dataframe(df_usuarios, use_container_width=True)
+        
+        st.markdown("### 📇 Todos os Clientes Salvos")
+        df_clientes = db_listar_todos_clientes()
+        st.dataframe(df_clientes, use_container_width=True)
+        st.markdown("---")
 
 # --- TABELA DE NORMAS (NBR ISO/CIE 8995-1) ---
 TABELA_NORMA = {
@@ -208,12 +277,6 @@ if "banco_luminarias" not in st.session_state:
         {"Fabricante": "Philips", "Modelo": "Painel LED 24W Redondo Embutir", "Lumens": 1920, "Potencia": 24.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Osram", "Modelo": "Luminária LED Estanque 36W", "Lumens": 3600, "Potencia": 36.0, "Tipo": "Painel/Luminária"},
         {"Fabricante": "Taschibra", "Modelo": "Painel LED Slim 12W Quadrado", "Lumens": 960, "Potencia": 12.0, "Tipo": "Painel/Luminária"},
-    ]
-
-if "banco_fitas" not in st.session_state:
-    st.session_state.banco_fitas = [
-        {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20", "Lumens": 900, "Potencia": 10.0},
-        {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
     ]
 
 # --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM WORD (DOCX) ---
@@ -258,7 +321,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
     data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
     p_t = doc.add_paragraph()
-    r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO EXECUTIVO CONSOLIDADO")
+    r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO EXECUTIVO CONSOLIDADO (TESTE SQLITE)")
     r_t.bold = True
     r_t.font.size = Pt(14)
     r_t.font.color.rgb = COR_TEXTO_TITULO
@@ -303,17 +366,17 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
             ("Nome do Ambiente", "—", amb['nome'], "—"),
             ("Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"),
             ("Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"),
-            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k = (C*L)/(Hu*(C+L))]", "—"),
+            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"),
             ("Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f}", "lx"),
             ("Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"),
             ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
             ("Quantidade de Equipamentos Adotada", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']),
             ("Arranjo Luminoso Distribuído", "—", f"{amb['arranjo_str']}", "arr."),
-            ("Espaçamentos e Afastamentos (C / L)", "dc / dl", f"Entre: {amb['dist_c_entre']:.2f}m / {amb['dist_l_entre']:.2f}m | Paredes: {amb['dist_c_parede']:.2f}m / {amb['dist_l_parede']:.2f}m", "m"),
+            ("Espaçamentos e Afastamentos", "dc / dl", f"Entre: {amb['dist_c_entre']:.2f}m / {amb['dist_l_entre']:.2f}m", "m"),
             ("Iluminância Real Alcançada", "Ereal", f"{amb['lux_real']:.2f}", "lx"),
             ("Potência Total Instalada e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"),
             ("Status Final de Conformidade", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—"),
-            ("Anotações / Responsabilidade", "ART/CREA", f"Prof: {dados_profissional.get('nome', 'N/A')} ({dados_profissional.get('registro', 'N/A')})", "—")
+            ("Responsabilidade Técnica", "ART", f"{dados_profissional.get('nome', 'N/A')}", "—")
         ]
 
         for ri, row_vals in enumerate(dados_bloco1):
@@ -335,122 +398,9 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     buffer.seek(0)
     return buffer.getvalue()
 
-
-# --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM PDF (REPORTLAB) ---
-def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=24, leftMargin=24, topMargin=30, bottomMargin=30)
-    story = []
-    styles = getSampleStyleSheet()
-
-    cor_primaria = colors.HexColor("#1A365D")
-    
-    titulo_style = ParagraphStyle(
-        'TituloRelatorio',
-        parent=styles['Heading1'],
-        fontName='Helvetica-Bold',
-        fontSize=13,
-        textColor=cor_primaria,
-        spaceAfter=4
-    )
-    
-    texto_style = ParagraphStyle(
-        'TextoNormal',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8.5,
-        textColor=colors.HexColor("#323232")
-    )
-
-    th_style = ParagraphStyle(
-        'TableHeader',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=8.5,
-        textColor=colors.whitesmoke,
-        alignment=0
-    )
-
-    td_left = ParagraphStyle(
-        'TableCellLeft',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8,
-        textColor=colors.HexColor("#323232"),
-        alignment=0
-    )
-
-    story.append(Paragraph("RELATÓRIO LUMINOTÉCNICO EXECUTIVO CONSOLIDADO", titulo_style))
-    data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
-    
-    info_txt = f"<b>Cliente / Empreendimento:</b> {dados_cliente.get('Nome', 'Cliente Geral')} | Método dos Lúmens<br/>" \
-               f"<b>Responsável Técnico:</b> {dados_profissional.get('nome', 'Não informado')} — Registro: {dados_profissional.get('registro', 'Não informado')} | Data: {data_atual_str}<br/>" \
-               f"<b>Norma de Referência:</b> NBR ISO/CIE 8995-1 & NBR 5410"
-    story.append(Paragraph(info_txt, texto_style))
-    story.append(Spacer(1, 10))
-
-    for idx, amb in enumerate(lista_ambientes):
-        if idx > 0:
-            story.append(PageBreak())
-
-        story.append(Paragraph(f"<b>AMBIENTE: {amb['nome'].upper()}</b>", titulo_style))
-        story.append(Spacer(1, 6))
-
-        tabela_bruta = [
-            ["Parâmetro", "Símbolo", "Valor Adotado", "Unidade"],
-            ["Nome do Ambiente", "—", amb['nome'], "—"],
-            ["Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"],
-            ["Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"],
-            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k=(C*L)/(Hu*(C+L))]", "—"],
-            ["Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f} lx", "NBR ISO/CIE 8995-1"],
-            ["Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"],
-            ["Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm", amb['modelo_lum']],
-            ["Quantidade de Equipamentos Adotada", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']],
-            ["Arranjo Luminoso Distribuído", "—", f"{amb['arranjo_str']}", "arr."],
-            ["Espaçamentos (Entre e Paredes)", "dc / dl", f"Entre: {amb['dist_c_entre']:.2f}m / {amb['dist_l_entre']:.2f}m | Paredes: {amb['dist_c_parede']:.2f}m / {amb['dist_l_parede']:.2f}m", "m"],
-            ["Iluminância Real Alcançada", "Ereal", f"{amb['lux_real']:.2f} lx", "Calculado"],
-            ["Potência Total Instalada e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"],
-            ["Status Final de Conformidade", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—"],
-            ["Responsabilidade Técnica", "ART", f"{dados_profissional.get('nome', 'N/A')} ({dados_profissional.get('registro', 'N/A')})", "—"]
-        ]
-
-        tabela_dados = []
-        for r_idx, row in enumerate(tabela_bruta):
-            nova_linha = []
-            for c_idx, cell in enumerate(row):
-                if r_idx == 0:
-                    nova_linha.append(Paragraph(str(cell), th_style))
-                else:
-                    nova_linha.append(Paragraph(str(cell), td_left))
-            tabela_dados.append(nova_linha)
-
-        t = Table(tabela_dados, colWidths=[200, 60, 180, 124])
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), cor_primaria),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#F7FAFC"), colors.white])
-        ]))
-        
-        story.append(t)
-        story.append(Spacer(1, 10))
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
-
-
 # --- INTERFACE PRINCIPAL ---
-st.title("💡 Luminotécnica Profissional")
-st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')}")
+st.title("💡 Luminotécnica Profissional — Teste SQLite")
+st.markdown(f"**Sessão Ativa (SQLite):** {email_atual}")
 
 if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
@@ -464,15 +414,13 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 👷 Identificação do Profissional")
 prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_nome_input")
 prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
-prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
-prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
 
 st.markdown("---")
 
 # --- MÓDULO DE CADASTRO DE CLIENTES ---
-st.markdown("### 📇 Cadastro e Seleção de Clientes")
+st.markdown("### 📇 Cadastro e Seleção de Clientes (Salvo no SQLite)")
 with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
-    with st.form("form_novo_cliente"):
+    with st.form("form_novo_cliente_sqlite"):
         col_nc1, col_nc2 = st.columns(2)
         with col_nc1:
             cad_nome_cli = st.text_input("Nome / Razão Social do Cliente")
@@ -481,326 +429,165 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
             cad_email_cli = st.text_input("E-mail do Cliente")
             cad_cidade_cli = st.text_input("Cidade / Estado (Ex: Rio de Janeiro - RJ)")
             
-        btn_salvar_cliente = st.form_submit_button("Salvar Cliente")
+        btn_salvar_cliente = st.form_submit_button("Salvar Cliente no SQLite")
         if btn_salvar_cliente:
             if cad_nome_cli.strip() != "":
-                novo_cliente_obj = {
-                    "Nome": cad_nome_cli,
-                    "Email": cad_email_cli if cad_email_cli else "Não informado",
-                    "Telefone": cad_tel_cli if cad_tel_cli else "Não informado",
-                    "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
-                }
-                # Adiciona ao banco do usuário atual e persiste no arquivo JSON
-                st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"].append(novo_cliente_obj)
-                salvar_banco_dados()
-                st.success(f"Cliente '{cad_nome_cli}' cadastrado e salvo com sucesso!")
+                db_adicionar_cliente(email_atual, cad_nome_cli, cad_email_cli, cad_tel_cli, cad_cidade_cli)
+                st.success(f"Cliente '{cad_nome_cli}' salvo permanentemente no banco SQLite!")
                 st.rerun()
             else:
                 st.error("O nome do cliente é obrigatório.")
 
-banco_clientes_usuario = st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"]
+banco_clientes_usuario = db_obter_clientes(email_atual)
 lista_nomes_clientes = [c["Nome"] for c in banco_clientes_usuario]
 cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
 cliente_dados_obj = next((c for c in banco_clientes_usuario if c["Nome"] == cliente_selecionado_nome), banco_clientes_usuario[0])
 
 st.markdown("---")
+st.markdown(f"### 🛋️ Ambiente de Cálculo Ativo para: **{cliente_dados_obj['Nome']}**")
 
-aba_principal, aba_fitas = st.tabs(["🏠 1. Cálculo de Luminárias e Painéis", "✨ 2. Projeto de Fitas LED (PRO)"])
-
-with aba_principal:
-    st.markdown(f"### 🛋️ Ambientes para o Cliente: **{cliente_dados_obj['Nome']}**")
-
-    with st.expander("⚙️ Cadastrar Nova Luminária no Banco"):
-        with st.form("form_nova_lum"):
-            col_fl1, col_fl2, col_fl3, col_fl4, col_fl5 = st.columns(5)
-            with col_fl1:
-                novo_tipo = st.selectbox("Categoria", ["Painel/Luminária", "Industrial"])
-            with col_fl2:
-                novo_fab = st.text_input("Fabricante", value="Philips")
-            with col_fl3:
-                novo_mod = st.text_input("Modelo", value="Painel LED")
-            with col_fl4:
-                novo_lum = st.number_input("Fluxo (lm)", value=1440.0, step=50.0)
-            with col_fl5:
-                nova_pot = st.number_input("Potência (W)", value=18.0, step=1.0)
-                
-            btn_salvar_lum = st.form_submit_button("Salvar no Banco")
-            if btn_salvar_lum:
-                st.session_state.banco_luminarias.append({
-                    "Fabricante": novo_fab,
-                    "Modelo": novo_mod,
-                    "Lumens": novo_lum,
-                    "Potencia": nova_pot,
-                    "Tipo": novo_tipo
-                })
-                st.success("Luminária cadastrada com sucesso!")
-
-    if "ambientes" not in st.session_state:
-        st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
-
-    col_add, col_rem = st.columns([1, 1])
-    with col_add:
-        if st.button("➕ Adicionar Novo Ambiente"):
-            novo_id = st.session_state.ambientes[-1]["id"] + 1 if st.session_state.ambientes else 1
-            st.session_state.ambientes.append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
-            st.rerun()
-    with col_rem:
-        if len(st.session_state.ambientes) > 1 and st.button("🗑️ Remover Último Ambiente"):
-            st.session_state.ambientes.pop()
-            st.rerun()
-
-    lista_calculos_ambientes = []
-
-    for amb_atual in st.session_state.ambientes:
-        with st.container():
-            st.markdown(f"#### 📐 Ambiente: {amb_atual['nome']}")
+with st.expander("⚙️ Cadastrar Nova Luminária no Banco"):
+    with st.form("form_nova_lum_sqlite"):
+        col_fl1, col_fl2, col_fl3, col_fl4, col_fl5 = st.columns(5)
+        with col_fl1:
+            novo_tipo = st.selectbox("Categoria", ["Painel/Luminária", "Industrial"])
+        with col_fl2:
+            novo_fab = st.text_input("Fabricante", value="Philips")
+        with col_fl3:
+            novo_mod = st.text_input("Modelo", value="Painel LED")
+        with col_fl4:
+            novo_lum = st.number_input("Fluxo (lm)", value=1440.0, step=50.0)
+        with col_fl5:
+            nova_pot = st.number_input("Potência (W)", value=18.0, step=1.0)
             
-            col_n1, col_n2 = st.columns(2)
-            with col_n1:
-                novo_nome = st.text_input("Nome do Ambiente", value=amb_atual['nome'], key=f"nome_amb_{amb_atual['id']}")
-            with col_n2:
-                tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
-
-            lux_padrao_norma = TABELA_NORMA[tipo_atividade]
-            col_lux1, col_lux2 = st.columns(2)
-            with col_lux1:
-                usar_lux_manual = st.checkbox("Alterar Iluminância (Lux) Manualmente?", key=f"chk_lux_{amb_atual['id']}")
-            with col_lux2:
-                if usar_lux_manual:
-                    lux_req = st.number_input("Iluminância Desejada (lx)", value=float(lux_padrao_norma), step=10.0, key=f"lux_man_{amb_atual['id']}")
-                else:
-                    lux_req = float(lux_padrao_norma)
-                    st.markdown(f"**Iluminância Normativa:** {lux_req} lx")
-
-            st.markdown("##### 💡 Seleção de Luminária / Painel")
-            banco_ativo = st.session_state.banco_luminarias
-            opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_ativo]
-            opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
-            
-            escolha_banco = st.selectbox("Selecionar Equipamento", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
-
-            if escolha_banco != "⚙️ Inserir Manual / Personalizado":
-                idx_escolhido = opcoes_banco_str.index(escolha_banco)
-                lum_sel = banco_ativo[idx_escolhido]
-                fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
-                modelo_desc_relatorio = f"[Painel/Luminária] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
-            else:
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    fluxo_base = st.number_input("Fluxo Luminoso da Unidade (lm)", value=1920.0, step=50.0, key=f"fluxo_man_lum_{amb_atual['id']}")
-                with col_m2:
-                    potencia_base = st.number_input("Potência Unitária (W)", value=24.0, step=1.0, key=f"pot_man_lum_{amb_atual['id']}")
-                modelo_desc_relatorio = "[Painel/Luminária] Personalizado"
-
-            st.markdown("##### Geometria e Fatores")
-            col_g1, col_g2, col_g3 = st.columns(3)
-            with col_g1:
-                comp = st.number_input("Comprimento (m)", value=3.0, step=0.1, key=f"comp_{amb_atual['id']}")
-                pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}")
-            with col_g2:
-                larg = st.number_input("Largura (m)", value=2.0, step=0.1, key=f"larg_{amb_atual['id']}")
-                hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
-            with col_g3:
-                hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
-
-            with st.expander("📖 Tabela Auxiliar de Referência para Fatores (u e d)"):
-                st.markdown("""
-                * **Fator de Utilização ($u$):** Eficiência luminosa de acordo com dimensões e reflexão.
-                  * *Ambientes claros:* **0.60 a 0.75**
-                  * *Ambientes médios:* **0.50 a 0.60**
-                  * *Ambientes escuros:* **0.30 a 0.45**
-                * **Fator de Depreciação / Manutenção ($d$):** Perda de fluxo por poeira e envelhecimento.
-                  * *Ambiente limpo:* **0.80 a 0.90**
-                  * *Ambiente normal:* **0.70 a 0.80**
-                  * *Ambiente industrial:* **0.50 a 0.65**
-                """)
-
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, key=f"fu_{amb_atual['id']}")
-            with col_f2:
-                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}")
-
-            area = comp * larg
-            hu = pe_direito - hp - hp_desc
-            k_indice = (comp * larg) / (hu * (comp + larg)) if hu > 0 else 1.0
-            fluxo_req = (lux_req * area) / (fator_u * fator_d) if (fator_u * fator_d) > 0 else 0
-
-            fluxo_lampada = fluxo_base
-            potencia_lampada = potencia_base
-            qtd_teorica = fluxo_req / fluxo_lampada if fluxo_lampada > 0 else 0
-            qtd_min_sugerida = math.ceil(qtd_teorica)
-            if qtd_min_sugerida < 1:
-                qtd_min_sugerida = 1
-
-            st.markdown("##### 🎛️ Configuração do Arranjo e Quantidade")
-            usar_qtd_manual = st.checkbox("Definir quantidade total de luminárias manualmente?", key=f"chk_qtd_man_{amb_atual['id']}")
-
-            if usar_qtd_manual:
-                qtd_real = st.number_input("Quantidade Total de Luminárias", min_value=1, value=qtd_min_sugerida, step=1, key=f"qtd_manual_val_{amb_atual['id']}")
-                linhas_man, colunas_man = 1, int(qtd_real)
-                arranjo_str = f"Arranjo Livre ({int(qtd_real)} unidades)"
-            else:
-                col_arr1, col_arr2 = st.columns(2)
-                with col_arr1:
-                    linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
-                with col_arr2:
-                    colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
-                
-                qtd_real = linhas_man * colunas_man
-                arranjo_str = f"{linhas_man} Linhas x {colunas_man} Colunas"
-
-            if qtd_real < qtd_min_sugerida:
-                st.warning(f"⚠️ O quantitativo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
-
-            relacao_sh_padrao = 1.25 
-            espacamento_max_permitido = hu * relacao_sh_padrao
-
-            calc_c_auto = comp / colunas_man if colunas_man > 0 else comp
-            calc_l_auto = larg / linhas_man if linhas_man > 0 else larg
-
-            usar_espacamento_manual = st.checkbox("Definir afastamentos e espaçamentos manualmente?", key=f"chk_esp_{amb_atual['id']}")
-
-            if usar_espacamento_manual:
-                col_em1, col_em2 = st.columns(2)
-                with col_em1:
-                    dist_c_entre = st.number_input("Distância entre Luminárias (Comprimento - m)", value=float(calc_c_auto), step=0.1, key=f"dist_c_man_{amb_atual['id']}")
-                    dist_c_parede = st.number_input("Afastamento da Parede (Comprimento - m)", value=float(calc_c_auto/2.0), step=0.1, key=f"dc_par_man_{amb_atual['id']}")
-                with col_em2:
-                    dist_l_entre = st.number_input("Distância entre Luminárias (Largura - m)", value=float(calc_l_auto), step=0.1, key=f"dist_l_man_{amb_atual['id']}")
-                    dist_l_parede = st.number_input("Afastamento da Parede (Largura - m)", value=float(calc_l_auto/2.0), step=0.1, key=f"dl_par_man_{amb_atual['id']}")
-            else:
-                dist_c_entre = calc_c_auto
-                dist_c_parede = dist_c_entre / 2.0
-                dist_l_entre = calc_l_auto
-                dist_l_parede = dist_l_entre / 2.0
-
-            espacamento_critico_excedido = (dist_c_entre > espacamento_max_permitido) or (dist_l_entre > espacamento_max_permitido)
-
-            fluxo_instalado = qtd_real * fluxo_lampada
-            pot_total = qtd_real * potencia_lampada
-            
-            lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
-            dpi = pot_total / area if area > 0 else 0
-            variacao_fluxo_pct = ((fluxo_instalado - fluxo_req) / fluxo_req) * 100 if fluxo_req > 0 else 0
-            conforme = lux_real >= lux_req
-
-            st.success(f"✨ **Conferência de Quantidade:** **{int(qtd_real)} unidades** adotadas no arranjo ({area:.1f} m²).")
-            st.info(f"📏 **Espaçamentos Práticos:** Entre: C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Máximo Recomendado (S/H):** {espacamento_max_permitido:.2f}m")
-            
-            if espacamento_critico_excedido:
-                st.warning(f"⚠️ **Atenção:** O espaçamento adotado excede o limite técnico recomendado para esta altura ($Hu$ = {hu:.2f}m).")
-
-            lista_calculos_ambientes.append({
-                "id": amb_atual["id"],
-                "nome": novo_nome,
-                "comp": comp,
-                "larg": larg,
-                "pe_direito": pe_direito,
-                "hp": hp,
-                "hp_desc": hp_desc,
-                "hu": hu,
-                "area": area,
-                "k_indice": k_indice,
-                "lux_req": lux_req,
-                "fluxo_req": fluxo_req,
-                "fluxo_unidade_rel": fluxo_lampada,
-                "pot_unidade_rel": potencia_lampada,
-                "unidade_pot_desc": "Consumo Unitário (W)",
-                "fator_u": fator_u,
-                "fator_d": fator_d,
-                "desc_utilizacao": "Ambiente residencial / Padrão",
-                "desc_depreciacao": "Limpeza periódica / Padrão",
-                "modelo_lum": modelo_desc_relatorio,
-                "fluxo_instalado": fluxo_instalado,
-                "qtd_teorica": qtd_teorica,
-                "qtd_real_str": str(int(qtd_real)),
-                "unidade_medida_qtd": "un",
-                "arranjo_str": arranjo_str,
-                "dist_c_entre": dist_c_entre,
-                "dist_c_parede": dist_c_parede,
-                "dist_l_entre": dist_l_entre,
-                "dist_l_parede": dist_l_parede,
-                "lux_real": lux_real,
-                "pot_total": pot_total,
-                "dpi": dpi,
-                "variacao_fluxo_pct": variacao_fluxo_pct,
-                "conforme": conforme
+        btn_salvar_lum = st.form_submit_button("Salvar no Banco")
+        if btn_salvar_lum:
+            st.session_state.banco_luminarias.append({
+                "Fabricante": novo_fab, "Modelo": novo_mod, "Lumens": novo_lum, "Potencia": nova_pot, "Tipo": novo_tipo
             })
-            st.markdown("---")
+            st.success("Luminária cadastrada com sucesso!")
 
-with aba_fitas:
-    st.markdown("### ✨ Projeto de Fitas LED Lineares")
-    col_fita_1, col_fita_2 = st.columns(2)
-    with col_fita_1:
-        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, key="fita_comp_m")
-        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, key="fita_lux_alvo")
-    with col_fita_2:
-        banco_fita_opcoes = [f"{f['Fabricante']} - {f['Modelo']} ({f['Lumens']} lm/m)" for f in st.session_state.banco_fitas]
-        banco_fita_opcoes.append("⚙️ Personalizada")
-        sel_fita_aba = st.selectbox("Escolher Fita LED", banco_fita_opcoes, key="sel_fita_aba_key")
+if "ambientes" not in st.session_state:
+    st.session_state.ambientes = [{"id": 1, "nome": "Ambiente 1"}]
+
+col_add, col_rem = st.columns([1, 1])
+with col_add:
+    if st.button("➕ Adicionar Novo Ambiente"):
+        novo_id = st.session_state.ambientes[-1]["id"] + 1 if st.session_state.ambientes else 1
+        st.session_state.ambientes.append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
+        st.rerun()
+with col_rem:
+    if len(st.session_state.ambientes) > 1 and st.button("🗑️ Remover Último Ambiente"):
+        st.session_state.ambientes.pop()
+        st.rerun()
+
+lista_calculos_ambientes = []
+
+for amb_atual in st.session_state.ambientes:
+    with st.container():
+        st.markdown(f"#### 📐 Ambiente: {amb_atual['nome']}")
         
-        if "Personalizada" not in sel_fita_aba:
-            idx_f = banco_fita_opcoes.index(sel_fita_aba)
-            lm_metro = st.session_state.banco_fitas[idx_f]["Lumens"]
-        else:
-            lm_metro = st.number_input("Fluxo por Metro (lm/m)", value=900.0, step=50.0, key="fita_lm_man")
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            novo_nome = st.text_input("Nome do Ambiente", value=amb_atual['nome'], key=f"nome_amb_{amb_atual['id']}")
+        with col_n2:
+            tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
 
-    metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
-    st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
+        lux_req = float(TABELA_NORMA[tipo_atividade])
 
-st.subheader("3. Emissão de Relatório Luminotécnico")
+        banco_ativo = st.session_state.banco_luminarias
+        opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_ativo]
+        escolha_banco = st.selectbox("Selecionar Equipamento", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
+        
+        idx_escolhido = opcoes_banco_str.index(escolha_banco)
+        lum_sel = banco_ativo[idx_escolhido]
+        fluxo_base, potencia_base = lum_sel["Lumens"], lum_sel["Potencia"]
+        modelo_desc_relatorio = f"[Painel/Luminária] {lum_sel['Fabricante']} - {lum_sel['Modelo']}"
 
-user_info_atual = st.session_state.usuarios_cadastrados.get(email_atual, {"tipo": "cliente", "assinante": False})
-is_admin_or_subscriber = (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False))
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+            comp = st.number_input("Comprimento (m)", value=3.0, step=0.1, key=f"comp_{amb_atual['id']}")
+            pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}")
+        with col_g2:
+            larg = st.number_input("Largura (m)", value=2.0, step=0.1, key=f"larg_{amb_atual['id']}")
+            hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
+        with col_g3:
+            hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
 
-if not is_admin_or_subscriber:
-    st.warning("🔒 **Recurso Exclusivo para Assinantes:** O período de teste permite realizar os cálculos na tela, mas a geração e o download dos relatórios oficiais (.docx e .pdf) exigem uma assinatura ativa.")
-else:
-    col_dl1, col_dl2 = st.columns(2)
-    
-    with col_dl1:
-        if st.button("📄 Gerar Relatório Word (.docx)", use_container_width=True):
-            try:
-                dados_prof_dict = {
-                    "nome": prof_nome if prof_nome else "Não informado",
-                    "registro": prof_registro if prof_registro else "Não informado",
-                    "celular": prof_celular if prof_celular else "Não informado",
-                    "email": prof_email if prof_email else "Não informado"
-                }
-                logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-                arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-                
-                st.success("Word gerado com sucesso!")
-                st.download_button(
-                    label="📥 Baixar Arquivo .docx",
-                    data=arquivo_docx_bytes,
-                    file_name=f"Relatorio_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Erro ao gerar Word: {e}")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, key=f"fu_{amb_atual['id']}")
+        with col_f2:
+            fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}")
 
-    with col_dl2:
-        if st.button("📑 Gerar Relatório PDF (.pdf)", use_container_width=True):
-            try:
-                dados_prof_dict = {
-                    "nome": prof_nome if prof_nome else "Não informado",
-                    "registro": prof_registro if prof_registro else "Não informado",
-                    "celular": prof_celular if prof_celular else "Não informado",
-                    "email": prof_email if prof_email else "Não informado"
-                }
-                logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
-                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_dados_obj, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
-                
-                st.success("PDF gerado com sucesso!")
-                st.download_button(
-                    label="📥 Baixar Arquivo .pdf",
-                    data=arquivo_pdf_bytes,
-                    file_name=f"Relatorio_{cliente_dados_obj['Nome'].replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Erro ao gerar PDF: {e}")
+        area = comp * larg
+        hu = pe_direito - hp - hp_desc
+        k_indice = (comp * larg) / (hu * (comp + larg)) if hu > 0 else 1.0
+        fluxo_req = (lux_req * area) / (fator_u * fator_d) if (fator_u * fator_d) > 0 else 0
+
+        qtd_teorica = fluxo_req / fluxo_base if fluxo_base > 0 else 0
+        qtd_min_sugerida = max(1, math.ceil(qtd_teorica))
+
+        col_arr1, col_arr2 = st.columns(2)
+        with col_arr1:
+            linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
+        with col_arr2:
+            colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
+        
+        qtd_real = linhas_man * colunas_man
+        arranjo_str = f"{linhas_man} Linhas x {colunas_man} Colunas"
+
+        dist_c_entre = comp / colunas_man if colunas_man > 0 else comp
+        dist_l_entre = larg / linhas_man if linhas_man > 0 else larg
+
+        fluxo_instalado = qtd_real * fluxo_base
+        pot_total = qtd_real * potencia_base
+        lux_real = (fluxo_instalado * fator_u * fator_d) / area if area > 0 else 0
+        dpi = pot_total / area if area > 0 else 0
+        conforme = lux_real >= lux_req
+
+        lista_calculos_ambientes.append({
+            "id": amb_atual["id"],
+            "nome": novo_nome,
+            "comp": comp,
+            "larg": larg,
+            "pe_direito": pe_direito,
+            "area": area,
+            "k_indice": k_indice,
+            "lux_req": lux_req,
+            "fluxo_unidade_rel": fluxo_base,
+            "fator_u": fator_u,
+            "fator_d": fator_d,
+            "modelo_lum": modelo_desc_relatorio,
+            "qtd_real_str": str(int(qtd_real)),
+            "unidade_medida_qtd": "un",
+            "arranjo_str": arranjo_str,
+            "dist_c_entre": dist_c_entre,
+            "dist_l_entre": dist_l_entre,
+            "lux_real": lux_real,
+            "pot_total": pot_total,
+            "dpi": dpi,
+            "conforme": conforme
+        })
+        st.markdown("---")
+
+st.subheader("3. Emissão de Relatório de Teste (.docx)")
+if st.button("📄 Gerar Relatório Word (.docx) - SQLite", use_container_width=True):
+    try:
+        dados_prof_dict = {
+            "nome": prof_nome if prof_nome else "Não informado",
+            "registro": prof_registro if prof_registro else "Não informado"
+        }
+        logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
+        arquivo_docx_bytes = gerar_docx_consolidado(cliente_dados_obj, dados_prof_dict, lista_ambientes=lista_calculos_ambientes, logo_file=logo_bytes)
+        
+        st.success("Relatório gerado com sucesso!")
+        st.download_button(
+            label="📥 Baixar Relatório Word (.docx)",
+            data=arquivo_docx_bytes,
+            file_name=f"Relatorio_Teste_{cliente_dados_obj['Nome'].replace(' ', '_')}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Erro ao gerar documento: {e}")
