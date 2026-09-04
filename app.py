@@ -412,7 +412,7 @@ if st.sidebar.button("🚪 Sair do Sistema"):
     st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🏢 Logotipo do Projeto")
+st.sidebar.markdown("### 🏢 Logotipo da Empresa")
 logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"])
 
 st.sidebar.markdown("---")
