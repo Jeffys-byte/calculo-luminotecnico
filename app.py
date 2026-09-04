@@ -911,7 +911,9 @@ else:
                 }
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
-                arquivo_docx_bytes = gerar_docx_consolidado(cliente_ativo_rel, dados_prof_dict, lista_ambientes, logo_file=logo_bytes)
+                
+                # CORRIGIDO: Passando lista_calculos_ambientes em vez de lista_ambientes
+                arquivo_docx_bytes = gerar_docx_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
                 
                 st.success("Word gerado com sucesso!")
                 st.download_button(
@@ -935,7 +937,9 @@ else:
                 }
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
-                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_ativo_rel, dados_prof_dict, lista_ambientes, logo_file=logo_bytes)
+                
+                # CORRIGIDO: Passando lista_calculos_ambientes em vez de lista_ambientes
+                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
                 
                 st.success("PDF gerado com sucesso!")
                 st.download_button(
