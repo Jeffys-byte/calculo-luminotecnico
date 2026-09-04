@@ -90,7 +90,6 @@ def salvar_usuario_db(email, senha, tipo="cliente", assinante=0):
     data_criacao = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("INSERT OR REPLACE INTO usuarios (email, senha, criacao, tipo, assinante) VALUES (?, ?, ?, ?, ?)",
                    (email, senha, data_criacao, tipo, assinante))
-    # Inserir cliente padrão
     cursor.execute("INSERT INTO clientes (email_usuario, nome, email_cli, telefone, cidade) VALUES (?, ?, ?, ?, ?)",
                    (email, "Cliente Exemplo", "exemplo@email.com", "(21) 98888-8888", "Rio de Janeiro - RJ"))
     conn.commit()
@@ -107,7 +106,7 @@ def adicionar_cliente_db(email_usuario, nome, email_cli, telefone, cidade):
 def listar_todos_usuarios_db():
     conn = sqlite3.connect('luminotecnica.db')
     df_users = pd.read_sql_query("SELECT email, criacao, tipo, assinante FROM usuarios", conn)
-    df_cli = pd.read_sql_query("SELECT email_usuario, nome FROM clientes", conn)
+    df_cli = pd.read_sql_query("SELECT email_usuario, nome, email_cli, telefone, cidade FROM clientes", conn)
     conn.close()
     return df_users, df_cli
 
@@ -482,10 +481,16 @@ if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-# --- PAINEL ADMINISTRATIVO SE FOR ADMIN ---
+# --- PAINEL ADMINISTRATIVO NA BARRA LATERAL (SE FOR ADMIN) ---
 if user_info_atual and user_info_atual["tipo"] == "admin":
     st.sidebar.markdown("---")
-    st.sidebar.markdown("👑 **Painel Admin Ativo**")
+    with st.sidebar.expander("👑 Painel Admin"):
+        st.markdown("### Banco de Dados")
+        df_u, df_c = listar_todos_usuarios_db()
+        st.markdown("**Usuários:**")
+        st.dataframe(df_u, use_container_width=True)
+        st.markdown("**Clientes:**")
+        st.dataframe(df_c, use_container_width=True)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏢 Logotipo do Projeto")
@@ -500,31 +505,12 @@ prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_em
 
 st.markdown("---")
 
-# Se for admin, mostrar aba extra de gerenciamento no topo
-if user_info_atual and user_info_atual["tipo"] == "admin":
-    aba_adm, aba_cli_mod, aba_calc_mod, aba_fitas_mod = st.tabs([
-        "👑 PAINEL DE CONTROLE ADMINISTRATIVO", 
-        "📇 Cadastro e Seleção de Clientes", 
-        "🏠 1. Cálculo de Luminárias e Painéis", 
-        "✨ 2. Projeto de Fitas LED (PRO)"
-    ])
-else:
-    aba_cli_mod, aba_calc_mod, aba_fitas_mod = st.tabs([
-        "📇 Cadastro e Seleção de Clientes", 
-        "🏠 1. Cálculo de Luminárias e Painéis", 
-        "✨ 2. Projeto de Fitas LED (PRO)"
-    ])
-    aba_adm = None
-
-if aba_adm:
-    with aba_adm:
-        st.markdown("### 👑 Painel Administrativo de Usuários e Cadastros")
-        df_u, df_c = listar_todos_usuarios_db()
-        st.markdown("#### 👥 Usuários Cadastrados no Banco SQLite")
-        st.dataframe(df_u, use_container_width=True)
-        st.markdown("#### 📇 Clientes Cadastrados por Usuários")
-        st.dataframe(df_c, use_container_width=True)
-        st.markdown("---")
+# --- ABAS PRINCIPAIS CORRETAS ---
+aba_cli_mod, aba_calc_mod, aba_fitas_mod = st.tabs([
+    "📇 Cadastro e Seleção de Clientes", 
+    "🏠 1. Cálculo de Luminárias e Painéis", 
+    "✨ 2. Projeto de Fitas LED (PRO)"
+])
 
 with aba_cli_mod:
     st.markdown("### 📇 Cadastro e Seleção de Clientes")
@@ -654,18 +640,6 @@ with aba_calc_mod:
                 hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
             with col_g3:
                 hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
-
-            with st.expander("📖 Tabela Auxiliar de Referência para Fatores (u e d)"):
-                st.markdown("""
-                * **Fator de Utilização ($u$):** Representa a eficiência luminosa do ambiente de acordo com as dimensões e reflexão das paredes/teto.
-                  * *Ambientes claros (paredes/tetos brancos):* **0.60 a 0.75**
-                  * *Ambientes médios / normais:* **0.50 a 0.60**
-                  * *Ambientes escuros / industriais:* **0.30 a 0.45**
-                * **Fator de Depreciação / Manutenção ($d$):** Considera a perda de fluxo por acúmulo de poeira e envelhecimento das lâmpadas.
-                  * *Ambiente limpo com limpeza periódica (escritórios/residências):* **0.80 a 0.90**
-                  * *Ambiente normal / comercial padrão:* **0.70 a 0.80**
-                  * *Ambiente industrial sujeito a poeira/fumaça:* **0.50 a 0.65**
-                """)
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
