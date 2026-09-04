@@ -3,6 +3,7 @@ import pandas as pd
 import math
 import io
 import datetime
+import base64
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -10,6 +11,29 @@ st.set_page_config(
     page_icon="💡",
     layout="wide"
 )
+
+# --- FUNÇÃO DE FUNDO PERSONALIZADO (CSS / BASE64) ---
+def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
+    if img_bytes:
+        encoded = base64.b64encode(img_bytes).decode()
+        bg_val = f"url('data:image/jpeg;base64,{encoded}')"
+    elif url_imagem:
+        bg_val = f"url('{url_imagem}')"
+    else:
+        return
+        
+    css = f"""
+    <style>
+    .stApp {{
+        background-image: linear-gradient(rgba(10, 15, 30, 0.75), rgba(10, 15, 30, 0.85)), {bg_val};
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
 # --- BANCO DE DADOS LOCAL DE USUÁRIOS (MEMÓRIA DO APP) ---
 if "usuarios_cadastrados" not in st.session_state:
@@ -32,8 +56,11 @@ def verificar_autenticacao():
         st.session_state.usuario_email = None
 
     if not st.session_state.autenticado:
-        st.markdown("## 🔐 Área Restrita - Luminotécnica Profissional")
-        st.markdown("Crie sua conta e ganhe **24 horas de teste gratuito**, ou faça login se já tiver cadastro.")
+        # Fundo estético de inspiração arquitetônica moderna / iluminação linear
+        definir_fundo_personalizado_base64(url_imagem="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1920&auto=format&fit=crop")
+        
+        st.markdown("<h2 style='text-align: center; color: #ffffff;'>🔐 Área Restrita - Luminotécnica Profissional</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #cbd5e0;'>Crie sua conta e ganhe <b>24 horas de teste gratuito</b>, ou faça login se já tiver cadastro.</p>", unsafe_allow_html=True)
         
         tab_login, tab_cadastro, tab_planos = st.tabs(["🔑 Fazer Login", "📝 Criar Conta Grátis (Teste 24h)", "💳 Assinar (R$ 19,90/mês)"])
         
