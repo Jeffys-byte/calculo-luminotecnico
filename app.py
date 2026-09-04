@@ -155,19 +155,6 @@ def verificar_autenticacao():
                         agora = datetime.datetime.now()
                         tempo_criacao = user_data["criacao"]
                         horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
-                        if not verificar_autenticacao():
-    st.stop()
-# --- VERIFICAÇÃO CONTÍNUA DO TEMPO DE TESTE ---
-email_atual = st.session_state.usuario_email
-user_info_atual = carregar_usuario_db(email_atual)
-
-if user_info_atual and user_info_atual["tipo"] != "admin" and not user_info_atual.get("assinante", False):
-    agora = datetime.datetime.now()
-    horas_decorridas = (agora - user_info_atual["criacao"]).total_seconds() / 3600
-    if horas_decorridas > 24:
-        st.session_state.autenticado = False
-        st.error("⏰ Seu período de teste de 24 horas expirou. Faça a assinatura para continuar utilizando o sistema.")
-        st.stop()
                         
                         if user_data["tipo"] == "admin" or horas_decorridas <= 24 or user_data.get("assinante", False):
                             st.session_state.autenticado = True
@@ -211,8 +198,18 @@ if user_info_atual and user_info_atual["tipo"] != "admin" and not user_info_atua
 if not verificar_autenticacao():
     st.stop()
 
+# --- VERIFICAÇÃO CONTÍNUA DO TEMPO DE TESTE ---
 email_atual = st.session_state.usuario_email
 user_info_atual = carregar_usuario_db(email_atual)
+
+if user_info_atual and user_info_atual["tipo"] != "admin" and not user_info_atual.get("assinante", False):
+    agora = datetime.datetime.now()
+    horas_decorridas = (agora - user_info_atual["criacao"]).total_seconds() / 3600
+    if horas_decorridas > 24:
+        st.session_state.autenticado = False
+        st.error("⏰ Seu período de teste de 24 horas expirou. Faça a assinatura para continuar utilizando o sistema.")
+        st.stop()
+
 banco_clientes_usuario = user_info_atual["banco_clientes"] if user_info_atual else [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
 
 TABELA_NORMA = {
