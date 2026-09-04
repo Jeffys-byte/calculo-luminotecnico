@@ -67,9 +67,9 @@ init_db()
 
 # --- FUNÇÃO DE ENVIO DE E-MAIL REAL ---
 def enviar_email_token(destinatario, token):
-    # INSIRA ABAIXO O SEU E-MAIL REAL E A SENHA DE APLICATIVO DO GMAIL
-    remetente = "jeffys.job@gmail.com"  # Coloque seu e-mail aqui
-    senha_app = "SUA_SENHA_DE_APLICATIVO_AQUI"  # Coloque a senha de 16 dígitos gerada no Google aqui
+    # INSIRA ABAIXO O SEU E-MAIL REAL E A SENHA DE APLICATIVO DO GMAIL (16 dígitos)
+    remetente = "jeffys.job@gmail.com"  
+    senha_app = "SUA_SENHA_DE_APLICATIVO_AQUI"  
     
     # Se configurado via secrets do Streamlit, ele tem prioridade:
     if "EMAIL_USER" in st.secrets and "EMAIL_PASS" in st.secrets:
@@ -100,7 +100,8 @@ def enviar_email_token(destinatario, token):
         servidor.quit()
         return True
     except Exception as e:
-        print(f"Erro ao enviar e-mail: {e}")
+        # Exibe o erro técnico exato na tela para facilitar o diagnóstico
+        st.error(f"Erro técnico detalhado: {e}")
         return False
 
 def carregar_usuario_db(email):
@@ -233,8 +234,6 @@ def verificar_autenticacao():
                                 sucesso_envio = enviar_email_token(email_rec, token_criado)
                                 if sucesso_envio:
                                     st.success(f"Código de segurança enviado com sucesso para **{email_rec}**! Verifique sua caixa de entrada ou spam.")
-                                else:
-                                    st.error("Erro ao disparar o e-mail. Verifique se o e-mail e a senha de aplicativo estão corretos.")
                             else:
                                 st.error("Este e-mail não está cadastrado.")
                         else:
