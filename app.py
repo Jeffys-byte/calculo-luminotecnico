@@ -231,7 +231,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
             ("Nome do Ambiente", "—", amb['nome'], "—"),
             ("Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"),
             ("Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"),
-            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"),
+            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k = (C*L)/(Hu*(C+L))]", "—"),
             ("Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f}", "lx"),
             ("Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"),
             ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
@@ -334,7 +334,7 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
             ["Nome do Ambiente", "—", amb['nome'], "—"],
             ["Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"],
             ["Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"],
-            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"],
+            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k=(C*L)/(Hu*(C+L))]", "—"],
             ["Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f} lx", "NBR ISO/CIE 8995-1"],
             ["Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"],
             ["Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm", amb['modelo_lum']],
@@ -559,7 +559,7 @@ with aba_principal:
             if qtd_min_sugerida < 1:
                 qtd_min_sugerida = 1
 
-            st.markdown("##### 🎛️ Configuração do Arranjo (Linhas e Colunas)")
+            st.markdown("##### 🎛️ Configuração do Arranjo e Espaçamentos")
             col_arr1, col_arr2 = st.columns(2)
             with col_arr1:
                 linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
@@ -571,10 +571,30 @@ with aba_principal:
             if qtd_real < qtd_min_sugerida:
                 st.warning(f"⚠️ O arranjo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
 
-            dist_c_entre = comp / colunas_man if colunas_man > 0 else comp
-            dist_c_parede = dist_c_entre / 2.0
-            dist_l_entre = larg / linhas_man if linhas_man > 0 else larg
-            dist_l_parede = dist_l_entre / 2.0
+            # --- CÁLCULO E VALIDAÇÃO TÉCNICA DE ESPAÇAMENTO S/H COM OPÇÃO MANUAL ---
+            relacao_sh_padrao = 1.25 
+            espacamento_max_permitido = hu * relacao_sh_padrao
+
+            calc_c_auto = comp / colunas_man if colunas_man > 0 else comp
+            calc_l_auto = larg / linhas_man if linhas_man > 0 else larg
+
+            usar_espacamento_manual = st.checkbox("Definir afastamentos e espaçamentos manualmente?", key=f"chk_esp_{amb_atual['id']}")
+
+            if usar_espacamento_manual:
+                col_em1, col_em2 = st.columns(2)
+                with col_em1:
+                    dist_c_entre = st.number_input("Distância entre Luminárias (Comprimento - m)", value=float(calc_c_auto), step=0.1, key=f"dist_c_man_{amb_atual['id']}")
+                    dist_c_parede = st.number_input("Afastamento da Parede (Comprimento - m)", value=float(calc_c_auto/2.0), step=0.1, key=f"dc_par_man_{amb_atual['id']}")
+                with col_em2:
+                    dist_l_entre = st.number_input("Distância entre Luminárias (Largura - m)", value=float(calc_l_auto), step=0.1, key=f"dist_l_man_{amb_atual['id']}")
+                    dist_l_parede = st.number_input("Afastamento da Parede (Largura - m)", value=float(calc_l_auto/2.0), step=0.1, key=f"dl_par_man_{amb_atual['id']}")
+            else:
+                dist_c_entre = calc_c_auto
+                dist_c_parede = dist_c_entre / 2.0
+                dist_l_entre = calc_l_auto
+                dist_l_parede = dist_l_entre / 2.0
+
+            espacamento_critico_excedido = (dist_c_entre > espacamento_max_permitido) or (dist_l_entre > espacamento_max_permitido)
 
             fluxo_instalado = qtd_real * fluxo_lampada
             pot_total = qtd_real * potencia_lampada
@@ -585,7 +605,10 @@ with aba_principal:
             conforme = lux_real >= lux_req
 
             st.success(f"✨ **Conferência de Quantidade:** **{int(qtd_real)} unidades** adotadas no arranjo ({area:.1f} m²).")
-            st.info(f"📏 **Espaçamentos:** C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Afastamento da Parede:** C={dist_c_parede:.2f}m / L={dist_l_parede:.2f}m | **Lux Real:** {lux_real:.2f} lx")
+            st.info(f"📏 **Espaçamentos Práticos:** Entre: C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Máximo Recomendado (S/H):** {espacamento_max_permitido:.2f}m")
+            
+            if espacamento_critico_excedido:
+                st.warning(f"⚠️ **Atenção:** O espaçamento adotado entre as luminárias excede o limite técnico recomendado para esta altura de montagem ($Hu$ = {hu:.2f}m).")
 
             lista_calculos_ambientes.append({
                 "id": amb_atual["id"],
