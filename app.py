@@ -106,9 +106,7 @@ def atualizar_senha_db(email, nova_senha):
 def excluir_usuario_db(email):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
-    # Remove primeiro os clientes vinculados ao usuário para manter a integridade
     cursor.execute("DELETE FROM clientes WHERE email_usuario = ?", (email,))
-    # Remove o usuário
     cursor.execute("DELETE FROM usuarios WHERE email = ?", (email,))
     conn.commit()
     conn.close()
@@ -195,44 +193,6 @@ def verificar_autenticacao():
                             st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 19,90/mês.")
                     else:
                         st.error("E-mail ou senha incorretos, ou usuário não encontrado.")
-
-            with st.expander("🔑 Esqueci / Redefinir minha senha com Token"):
-                st.markdown("Insira seu e-mail para solicitar um **Código de Segurança (Token)** de redefinição.")
-                with st.form("form_pedir_token"):
-                    email_rec = st.text_input("E-mail cadastrado para recuperação").strip().lower()
-                    btn_gerar_token = st.form_submit_button("Gerar Código de Segurança")
-                    
-                    if btn_gerar_token:
-                        if email_rec:
-                            if carregar_usuario_db(email_rec):
-                                token_criado = gerar_token_recuperacao(email_rec)
-                                st.success(f"Código de segurança gerado com sucesso! (Simulação de envio): **{token_criado}**")
-                            else:
-                                st.error("Este e-mail não está cadastrado.")
-                        else:
-                            st.error("Informe o e-mail.")
-
-                st.markdown("---")
-                st.markdown("Já possui o código? Digite-o abaixo junto com a nova senha:")
-                with st.form("form_confirmar_token"):
-                    email_conf = st.text_input("Confirme seu e-mail").strip().lower()
-                    token_dig = st.text_input("Código de Segurança (Token de 6 dígitos)").strip()
-                    nova_senha_rec = st.text_input("Digite a nova senha", type="password").strip()
-                    btn_redefinir = st.form_submit_button("Validar e Atualizar Senha")
-                    
-                    if btn_redefinir:
-                        if email_conf and token_dig and nova_senha_rec:
-                            usr_check = carregar_usuario_db(email_conf)
-                            if usr_check:
-                                if usr_check["token_recuperacao"] == token_dig:
-                                    atualizar_senha_db(email_conf, nova_senha_rec)
-                                    st.success("Senha redefinida com segurança! Faça login na aba ao lado com a nova senha.")
-                                else:
-                                    st.error("Código de segurança (Token) inválido ou incorreto.")
-                            else:
-                                st.error("E-mail não encontrado.")
-                        else:
-                            st.error("Preencha todos os campos.")
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
@@ -612,7 +572,6 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
             st.rerun()
 
         st.markdown("---")
-        # Botão com confirmação para exclusão de usuário
         if st.button("🗑️ Excluir Usuário Selecionado do Banco", use_container_width=True):
             if email_alvo == "jefkar27@gmail.com":
                 st.error("Não é permitido excluir o usuário Administrador principal do sistema!")
@@ -886,23 +845,51 @@ with aba_calc_mod:
 
 with aba_fitas_mod:
     st.markdown("### ✨ Projeto de Fitas LED Lineares ℹ️")
-    col_fita_1, col_fita_2 = st.columns(2)
-    with col_fita_1:
-        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, key="fita_comp_m", help="Metragem linear total onde a fita LED será instalada.")
-        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, key="fita_lux_alvo", help="Nível de iluminação desejado para o projeto linear.")
-    with col_fita_2:
+    
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        comprimento_perfil = st.number_input(
+            "Comprimento do Perfil / Linha de Luz (m)", 
+            min_value=0.5, value=10.0, step=0.5, 
+            key="fita_comp_perfil",
+            help="O comprimento da fita LED será igual ao comprimento linear do perfil instalado."
+        )
+        metragem_fita = comprimento_perfil
+
+    with col_f2:
         banco_fita_opcoes = [f"{f['Fabricante']} - {f['Modelo']} ({f['Lumens']} lm/m)" for f in st.session_state.banco_fitas]
         banco_fita_opcoes.append("⚙️ Personalizada")
-        sel_fita_aba = st.selectbox("Escolher Fita LED", banco_fita_opcoes, key="sel_fita_aba_key")
+        sel_fita_aba = st.selectbox("Escolher Modelo de Fita LED", banco_fita_opcoes, key="sel_fita_aba_key")
         
         if "Personalizada" not in sel_fita_aba:
             idx_f = banco_fita_opcoes.index(sel_fita_aba)
-            lm_metro = st.session_state.banco_fitas[idx_f]["Lumens"]
+            fita_sel = st.session_state.banco_fitas[idx_f]
+            lumen_por_metro = fita_sel["Lumens"]
+            potencia_por_metro = fita_sel["Potencia"]
         else:
-            lm_metro = st.number_input("Fluxo por Metro (lm/m)", value=900.0, step=50.0, key="fita_lm_man")
+            col_pm1, col_pm2 = st.columns(2)
+            with col_pm1:
+                lumen_por_metro = st.number_input("Fluxo por Metro (lm/m)", value=1200.0, step=50.0, key="fita_lm_man")
+            with col_pm2:
+                potencia_por_metro = st.number_input("Potência por Metro (W/m)", value=14.4, step=0.5, key="fita_pot_man")
 
-    metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
-    st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
+    potencia_total = metragem_fita * potencia_por_metro
+    fluxo_total = metragem_fita * lumen_por_metro
+
+    capacidade_max_fonte_w = 150.0 
+    fontes_necessarias = math.ceil(potencia_total / capacidade_max_fonte_w)
+
+    st.markdown("---")
+    col_res1, col_res2, col_res3, col_res4 = st.columns(4)
+    col_res1.metric("Metragem da Fita / Perfil", f"{metragem_fita:.2f} m")
+    col_res2.metric("Potência Total", f"{potencia_total:.1f} W")
+    col_res3.metric("Fluxo Luminoso Total", f"{fluxo_total:,.0f} lm")
+    col_res4.metric("Fontes Recomendadas", f"{fontes_necessarias} un (150W máx)")
+
+    if potencia_total > capacidade_max_fonte_w:
+        st.warning(f"⚠️ **Atenção Profissional:** A potência total do trecho ({potencia_total:.1f}W) ultrapassa o limite seguro de uma única fonte padrão de 150W. O sistema dimensionou **{fontes_necessarias} fontes** para evitar queda de tensão nas pontas da linha de LED. Recomenda-se alimentar o perfil em pontos intermediários.")
+    else:
+        st.success(f"✅ O projeto está dentro da capacidade ideal para operação com 1 fonte de alimentação (até 150W).")
 
 st.subheader("3. Emissão de Relatório Luminotécnico ℹ️")
 
