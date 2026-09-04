@@ -92,7 +92,7 @@ def salvar_usuario_db(email, senha, tipo="cliente", assinante=0):
     conn.commit()
     conn.close()
 
-def atualizar_ senha_db(email, nova_senha):
+def atualizar_senha_db(email, nova_senha):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
     cursor.execute("UPDATE usuarios SET senha = ? WHERE email = ?", (nova_senha, email))
