@@ -4,6 +4,8 @@ import math
 import io
 import datetime
 import base64
+import json
+import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -11,6 +13,56 @@ st.set_page_config(
     page_icon="💡",
     layout="wide"
 )
+
+# --- SISTEMA DE PERSISTÊNCIA EM ARQUIVO JSON ---
+ARQUIVO_BANCO = "usuarios_db.json"
+
+def carregar_banco_dados():
+    if os.path.exists(ARQUIVO_BANCO):
+        try:
+            with open(ARQUIVO_BANCO, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                # Converter datas de string de volta para datetime onde necessário
+                for email, info in dados.items():
+                    if "criacao" in info and isinstance(info["criacao"], str):
+                        try:
+                            info["criacao"] = datetime.datetime.fromisoformat(info["criacao"])
+                        except:
+                            info["criacao"] = datetime.datetime.now()
+                return dados
+        except Exception:
+            pass
+    
+    # Banco padrão inicial se o arquivo não existir
+    return {
+        "jefkar27@gmail.com": {
+            "senha": "123", 
+            "criacao": datetime.datetime.now() - datetime.timedelta(days=30),
+            "tipo": "admin",
+            "assinante": True,
+            "banco_clientes": [
+                {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
+            ]
+        }
+    }
+
+def salvar_banco_dados():
+    # Prepara cópia serializável (convertendo datetime para string ISO)
+    dados_para_salvar = {}
+    for email, info in st.session_state.usuarios_cadastrados.items():
+        dados_para_salvar[email] = {
+            "senha": info["senha"],
+            "criacao": info["criacao"].isoformat() if isinstance(info["criacao"], datetime.datetime) else str(info["criacao"]),
+            "tipo": info["tipo"],
+            "assinante": info.get("assinante", False),
+            "banco_clientes": info.get("banco_clientes", [])
+        }
+    with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
+        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
+
+# Inicializa o banco de dados na sessão a partir do arquivo JSON
+if "usuarios_cadastrados" not in st.session_state:
+    st.session_state.usuarios_cadastrados = carregar_banco_dados()
 
 # --- FUNÇÃO DE FUNDO PERSONALIZADO (CSS / BASE64) ---
 def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
@@ -35,19 +87,6 @@ def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# --- BANCO DE DADOS LOCAL DE USUÁRIOS (MEMÓRIA DO APP) ---
-if "usuarios_cadastrados" not in st.session_state:
-    st.session_state.usuarios_cadastrados = {
-        "jefkar27@gmail.com": {
-            "senha": "123", 
-            "criacao": datetime.datetime.now() - datetime.timedelta(days=30),
-            "tipo": "admin",
-            "banco_clientes": [
-                {"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}
-            ]
-        }
-    }
-
 # --- SISTEMA DE AUTENTICAÇÃO, CADASTRO E TESTE DE 24H ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
@@ -56,7 +95,6 @@ def verificar_autenticacao():
         st.session_state.usuario_email = None
 
     if not st.session_state.autenticado:
-        # Fundo estético de inspiração arquitetônica moderna / iluminação linear
         definir_fundo_personalizado_base64(url_imagem="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1920&auto=format&fit=crop")
         
         st.markdown("<h2 style='text-align: center; color: #ffffff;'>🔐 Área Restrita - Luminotécnica Profissional</h2>", unsafe_allow_html=True)
@@ -71,10 +109,15 @@ def verificar_autenticacao():
                 btn_entrar = st.form_submit_button("Entrar no Sistema")
                 
                 if btn_entrar:
+                    # Recarrega do JSON para garantir dados atualizados
+                    st.session_state.usuarios_cadastrados = carregar_banco_dados()
                     if email_input in st.session_state.usuarios_cadastrados:
                         user_data = st.session_state.usuarios_cadastrados[email_input]
                         agora = datetime.datetime.now()
                         tempo_criacao = user_data["criacao"]
+                        if isinstance(tempo_criacao, str):
+                            tempo_criacao = datetime.datetime.fromisoformat(tempo_criacao)
+                            
                         horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
                         
                         if user_data["tipo"] == "admin" or horas_decorridas <= 24 or user_data.get("assinante", False):
@@ -89,7 +132,7 @@ def verificar_autenticacao():
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
-            st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos na obra.")
+            st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos.")
             
             with st.form("form_cadastro"):
                 novo_email = st.text_input("Seu E-mail principal", value="").strip().lower()
@@ -98,6 +141,7 @@ def verificar_autenticacao():
                 
                 if btn_cadastrar:
                     if novo_email and nova_senha:
+                        st.session_state.usuarios_cadastrados = carregar_banco_dados()
                         if novo_email in st.session_state.usuarios_cadastrados:
                             st.warning("Este e-mail já está cadastrado. Faça login na primeira aba.")
                         else:
@@ -110,6 +154,7 @@ def verificar_autenticacao():
                                     {"Nome": "Cliente Exemplo", "Email": "exemplo@email.com", "Telefone": "(21) 98888-8888", "Cidade": "Rio de Janeiro - RJ"}
                                 ]
                             }
+                            salvar_banco_dados() # Salva permanentemente no JSON
                             st.session_state.autenticado = True
                             st.session_state.usuario_email = novo_email
                             st.success("Conta criada com sucesso! Seu teste de 24 horas começou.")
@@ -412,7 +457,7 @@ if st.sidebar.button("🚪 Sair do Sistema"):
     st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🏢 Logotipo da Empresa")
+st.sidebar.markdown("### 🏢 Logotipo do Projeto")
 logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"])
 
 st.sidebar.markdown("---")
@@ -445,12 +490,15 @@ with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
                     "Telefone": cad_tel_cli if cad_tel_cli else "Não informado",
                     "Cidade": cad_cidade_cli if cad_cidade_cli else "Não informado"
                 }
+                # Adiciona ao banco do usuário atual e persiste no arquivo JSON
                 st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"].append(novo_cliente_obj)
-                st.success(f"Cliente '{cad_nome_cli}' cadastrado com sucesso!")
+                salvar_banco_dados()
+                st.success(f"Cliente '{cad_nome_cli}' cadastrado e salvo com sucesso!")
                 st.rerun()
             else:
                 st.error("O nome do cliente é obrigatório.")
 
+banco_clientes_usuario = st.session_state.usuarios_cadastrados[email_atual]["banco_clientes"]
 lista_nomes_clientes = [c["Nome"] for c in banco_clientes_usuario]
 cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
 cliente_dados_obj = next((c for c in banco_clientes_usuario if c["Nome"] == cliente_selecionado_nome), banco_clientes_usuario[0])
@@ -555,17 +603,16 @@ with aba_principal:
             with col_g3:
                 hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
 
-            # --- JANELA DE TABELA DE ORIENTAÇÃO PARA OS FATORES (U e D) ---
             with st.expander("📖 Tabela Auxiliar de Referência para Fatores (u e d)"):
                 st.markdown("""
-                * **Fator de Utilização ($u$):** Representa a eficiência luminosa do ambiente de acordo com as dimensões e reflexão das paredes/teto.
-                  * *Ambientes claros (paredes/tetos brancos):* **0.60 a 0.75**
-                  * *Ambientes médios / normais:* **0.50 a 0.60**
-                  * *Ambientes escuros / industriais:* **0.30 a 0.45**
-                * **Fator de Depreciação / Manutenção ($d$):** Considera a perda de fluxo por acúmulo de poeira e envelhecimento das lâmpadas.
-                  * *Ambiente limpo com limpeza periódica (escritórios/residências):* **0.80 a 0.90**
-                  * *Ambiente normal / comercial padrão:* **0.70 a 0.80**
-                  * *Ambiente industrial sujeito a poeira/fumaça:* **0.50 a 0.65**
+                * **Fator de Utilização ($u$):** Eficiência luminosa de acordo com dimensões e reflexão.
+                  * *Ambientes claros:* **0.60 a 0.75**
+                  * *Ambientes médios:* **0.50 a 0.60**
+                  * *Ambientes escuros:* **0.30 a 0.45**
+                * **Fator de Depreciação / Manutenção ($d$):** Perda de fluxo por poeira e envelhecimento.
+                  * *Ambiente limpo:* **0.80 a 0.90**
+                  * *Ambiente normal:* **0.70 a 0.80**
+                  * *Ambiente industrial:* **0.50 a 0.65**
                 """)
 
             col_f1, col_f2 = st.columns(2)
@@ -586,9 +633,7 @@ with aba_principal:
             if qtd_min_sugerida < 1:
                 qtd_min_sugerida = 1
 
-            # --- CONFIGURAÇÃO DO ARRANJO E QUANTIDADE MANUAL ---
             st.markdown("##### 🎛️ Configuração do Arranjo e Quantidade")
-            
             usar_qtd_manual = st.checkbox("Definir quantidade total de luminárias manualmente?", key=f"chk_qtd_man_{amb_atual['id']}")
 
             if usar_qtd_manual:
@@ -608,7 +653,6 @@ with aba_principal:
             if qtd_real < qtd_min_sugerida:
                 st.warning(f"⚠️ O quantitativo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
 
-            # --- CÁLCULO E VALIDAÇÃO TÉCNICA DE ESPAÇAMENTO S/H COM OPÇÃO MANUAL ---
             relacao_sh_padrao = 1.25 
             espacamento_max_permitido = hu * relacao_sh_padrao
 
@@ -645,7 +689,7 @@ with aba_principal:
             st.info(f"📏 **Espaçamentos Práticos:** Entre: C={dist_c_entre:.2f}m / L={dist_l_entre:.2f}m | **Máximo Recomendado (S/H):** {espacamento_max_permitido:.2f}m")
             
             if espacamento_critico_excedido:
-                st.warning(f"⚠️ **Atenção:** O espaçamento adotado entre as luminárias excede o limite técnico recomendado para esta altura de montagem ($Hu$ = {hu:.2f}m).")
+                st.warning(f"⚠️ **Atenção:** O espaçamento adotado excede o limite técnico recomendado para esta altura ($Hu$ = {hu:.2f}m).")
 
             lista_calculos_ambientes.append({
                 "id": amb_atual["id"],
@@ -711,7 +755,7 @@ user_info_atual = st.session_state.usuarios_cadastrados.get(email_atual, {"tipo"
 is_admin_or_subscriber = (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False))
 
 if not is_admin_or_subscriber:
-    st.warning("🔒 **Recurso Exclusivo para Assinantes:** O período de teste permite realizar os cálculos na tela, mas a geração e o download dos relatórios oficiais (.docx e .pdf) exigem uma assinatura ativa. Vá na aba de planos para liberar!")
+    st.warning("🔒 **Recurso Exclusivo para Assinantes:** O período de teste permite realizar os cálculos na tela, mas a geração e o download dos relatórios oficiais (.docx e .pdf) exigem uma assinatura ativa.")
 else:
     col_dl1, col_dl2 = st.columns(2)
     
