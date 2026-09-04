@@ -260,6 +260,7 @@ if "banco_fitas" not in st.session_state:
     st.session_state.banco_fitas = [
         {"Fabricante": "Gaya", "Modelo": "Fita LED 10W/m IP20", "Lumens": 900, "Potencia": 10.0},
         {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
+        {"Fabricante": "Gaya", "Modelo": "Fita LED COB 12W/m (Sem Pontos)", "Lumens": 1100, "Potencia": 12.0},
     ]
 
 def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, dados_fita=None, logo_file=None):
@@ -375,21 +376,21 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, d
 
         doc.add_paragraph()
 
-    # ADICIONAR SEÇÃO DE FITAS LED SE HOUVER DADOS PREENCHIDOS
+    # ADICIONAR SEÇÃO DE FITAS LED EXPANDIDA SE HOUVER DADOS
     if dados_fita and dados_fita.get("metragem", 0) > 0:
         doc.add_page_break()
         p_fita = doc.add_paragraph()
-        r_fita = p_fita.add_run("PROJETO ESPECÍFICO: FITAS LED LINEARES E PERFIS")
+        r_fita = p_fita.add_run("PROJETO TÉCNICO ESPECÍFICO: FITAS LED LINEARES E PERFIS")
         r_fita.bold = True
         r_fita.font.size = Pt(11.5)
         r_fita.font.color.rgb = COR_TEXTO_TITULO
 
-        t2 = doc.add_table(rows=7, cols=4)
+        t2 = doc.add_table(rows=10, cols=4)
         t2.alignment = WD_TABLE_ALIGNMENT.CENTER
         t2.autofit = False
         w2 = [Inches(2.5), Inches(1.0), Inches(1.8), Inches(1.2)]
 
-        headers2 = ["Parâmetro do Perfil / Fita", "Símbolo", "Valor Adotado", "Unidade"]
+        headers2 = ["Parâmetro do Perfil / Fita / Alimentação", "Símbolo", "Valor Adotado", "Unidade"]
         for ci, h in enumerate(headers2):
             cell = t2.cell(0, ci)
             cell.width = w2[ci]
@@ -403,11 +404,14 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, d
 
         dados_bloco_fita = [
             ("Modelo da Fita LED", "—", dados_fita["modelo"], "—"),
-            ("Comprimento Total do Perfil / Fita", "L", f"{dados_fita['metragem']:.2f}", "m"),
-            ("Fluxo Luminoso Linear", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"),
-            ("Potência Linear da Fita", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"),
+            ("Temperatura de Cor (CCT) & IRC", "CCT / IRC", f"{dados_fita['cct']} | IRC > {dados_fita['irc']}", "K / —"),
+            ("Tipo de Perfil de Alumínio", "Perfil", f"{dados_fita['tipo_perfil']}", "—"),
+            ("Comprimento Total da Linha de Luz", "L", f"{dados_fita['metragem']:.2f}", "m"),
+            ("Fluxo Luminoso Linear Equivalente", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"),
+            ("Potência Linear Específica", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"),
             ("Potência Elétrica Total Calculada", "P_total", f"{dados_fita['pot_total']:.1f}", "W"),
-            ("Fontes de Alimentação (150W máx)", "Fontes", f"{dados_fita['fontes']} unidades", "un")
+            ("Fontes de Alimentação (150W máx)", "Driver", f"{dados_fita['fontes']} unidades (CC 12V/24V)", "un"),
+            ("Bitola do Condutor / Queda de Tensão", "S / ΔU", f"{dados_fita['bitola_cabo']} | {dados_fita['queda_tensao']}", "mm² / %")
         ]
 
         for ri, row_vals in enumerate(dados_bloco_fita):
@@ -533,20 +537,23 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, da
         story.append(t)
         story.append(Spacer(1, 10))
 
-    # ADICIONAR SEÇÃO DE FITAS LED NO PDF SE HOUVER DADOS
+    # ADICIONAR SEÇÃO DE FITAS LED EXPANDIDA NO PDF SE HOUVER DADOS
     if dados_fita and dados_fita.get("metragem", 0) > 0:
         story.append(PageBreak())
-        story.append(Paragraph("<b>PROJETO ESPECÍFICO: FITAS LED LINEARES E PERFIS</b>", titulo_style))
+        story.append(Paragraph("<b>PROJETO TÉCNICO ESPECÍFICO: FITAS LED LINEARES E PERFIS</b>", titulo_style))
         story.append(Spacer(1, 6))
 
         tabela_fita_bruta = [
-            ["Parâmetro do Perfil / Fita", "Símbolo", "Valor Adotado", "Unidade"],
+            ["Parâmetro do Perfil / Fita / Alimentação", "Símbolo", "Valor Adotado", "Unidade"],
             ["Modelo da Fita LED", "—", dados_fita["modelo"], "—"],
-            ["Comprimento Total do Perfil / Fita", "L", f"{dados_fita['metragem']:.2f}", "m"],
-            ["Fluxo Luminoso Linear", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"],
-            ["Potência Linear da Fita", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"],
+            ["Temperatura de Cor (CCT) & IRC", "CCT / IRC", f"{dados_fita['cct']} | IRC > {dados_fita['irc']}", "K / —"],
+            ["Tipo de Perfil de Alumínio", "Perfil", f"{dados_fita['tipo_perfil']}", "—"],
+            ["Comprimento Total da Linha de Luz", "L", f"{dados_fita['metragem']:.2f}", "m"],
+            ["Fluxo Luminoso Linear Equivalente", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"],
+            ["Potência Linear Específica", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"],
             ["Potência Elétrica Total Calculada", "P_total", f"{dados_fita['pot_total']:.1f}", "W"],
-            ["Fontes de Alimentação (150W máx)", "Fontes", f"{dados_fita['fontes']} unidades", "un"]
+            ["Fontes de Alimentação (150W máx)", "Driver", f"{dados_fita['fontes']} unidades (CC 12V/24V)", "un"],
+            ["Bitola do Condutor / Queda de Tensão", "S / ΔU", f"{dados_fita['bitola_cabo']} | {dados_fita['queda_tensao']}", "mm² / %"]
         ]
 
         tabela_fita_dados = []
@@ -914,7 +921,7 @@ with aba_calc_mod:
             st.markdown("---")
 
 with aba_fitas_mod:
-    st.markdown("### ✨ Projeto de Fitas LED Lineares ℹ️")
+    st.markdown("### ✨ Projeto Avançado de Fitas LED Lineares e Perfis ℹ️")
     
     col_f1, col_f2 = st.columns(2)
     with col_f1:
@@ -922,9 +929,15 @@ with aba_fitas_mod:
             "Comprimento do Perfil / Linha de Luz (m)", 
             min_value=0.0, value=10.0, step=0.5, 
             key="fita_comp_perfil",
-            help="O comprimento da fita LED será igual ao comprimento linear do perfil instalado."
+            help="Comprimento linear total do perfil de alumínio a ser instalado."
         )
         metragem_fita = comprimento_perfil
+
+        tipo_perfil_aluminio = st.selectbox(
+            "Tipo de Perfil de Alumínio",
+            ["Perfil de Embutir com Aba", "Perfil de Embutir Sem Aba (Trimless)", "Perfil de Sobrepor", "Perfil de Canto (Cantoneira 90°)", "Saliência / Pendente"],
+            key="fita_perfil_tipo"
+        )
 
     with col_f2:
         banco_fita_opcoes = [f"{f['Fabricante']} - {f['Modelo']} ({f['Lumens']} lm/m)" for f in st.session_state.banco_fitas]
@@ -945,25 +958,48 @@ with aba_fitas_mod:
                 potencia_por_metro = st.number_input("Potência por Metro (W/m)", value=14.4, step=0.5, key="fita_pot_man")
             modelo_fita_desc = "Fita LED Personalizada"
 
+    col_e1, col_e2 = st.columns(2)
+    with col_e1:
+        cct_fita = st.selectbox("Temperatura de Cor (CCT)", ["2700K (Branco Quente Acolhedor)", "3000K (Branco Quente Padrão)", "4000K (Branco Neutro)", "6000K (Branco Frio)", "RGB / CCT Dinâmico"], key="fita_cct")
+    with col_e2:
+        irc_fita = st.selectbox("Índice de Reprodução de Cor (IRC / CRI)", ["> 80 (Comercial/Residencial)", "> 90 (Alto padrão / Cozinha / Closet)", "> 95 (Museus / Galerias / Vitrines)"], key="fita_irc")
+
     potencia_total = metragem_fita * potencia_por_metro
     fluxo_total = metragem_fita * lumen_por_metro
 
     capacidade_max_fonte_w = 150.0 
     fontes_necessarias = math.ceil(potencia_total / capacidade_max_fonte_w) if potencia_total > 0 else 0
 
+    # Estimativa simples de queda de tensão com base na corrente (I = P / 12V ou 24V assumindo 12V por segurança padrão)
+    tensao_sistema = 12.0 # Volts
+    corrente_total = potencia_total / tensao_sistema if tensao_sistema > 0 else 0
+    
+    # Sugestão de bitola de cabo baseada na corrente e comprimento
+    if corrente_total <= 5.0:
+        bitola_sugerida = "1.5 mm²"
+        queda_calc = "Abaixo de 2.0% (Excelente)"
+    elif corrente_total <= 10.0:
+        bitola_sugerida = "2.5 mm²"
+        queda_calc = "Abaixo de 3.0% (Adequado)"
+    else:
+        bitola_sugerida = "4.0 mm² ou Alimentação Bilateral"
+        queda_calc = "Requer injeção dupla de energia"
+
     st.markdown("---")
     col_res1, col_res2, col_res3, col_res4 = st.columns(4)
-    col_res1.metric("Metragem da Fita / Perfil", f"{metragem_fita:.2f} m")
+    col_res1.metric("Metragem do Perfil", f"{metragem_fita:.2f} m")
     col_res2.metric("Potência Total", f"{potencia_total:.1f} W")
     col_res3.metric("Fluxo Luminoso Total", f"{fluxo_total:,.0f} lm")
     col_res4.metric("Fontes Recomendadas", f"{fontes_necessarias} un (150W máx)")
 
+    st.info(specs_info := f"🔌 **Dimensionamento Elétrico & Queda de Tensão:** Corrente estimada em ~{corrente_total:.1f}A. Bitola recomendada para o trecho: **{bitola_sugerida}**. Queda de tensão estimada: **{queda_calc}**.")
+
     if potencia_total > capacidade_max_fonte_w:
-        st.warning(f"⚠️ **Atenção Profissional:** A potência total do trecho ({potencia_total:.1f}W) ultrapassa o limite seguro de uma única fonte padrão de 150W. O sistema dimensionou **{fontes_necessarias} fontes** para evitar queda de tensão nas pontas da linha de LED. Recomenda-se alimentar o perfil em pontos intermediários.")
+        st.warning(f"⚠️ **Atenção Profissional:** A potência total do trecho ({potencia_total:.1f}W) ultrapassa o limite seguro de uma única fonte padrão de 150W. O sistema dimensionou **{fontes_necessarias} fontes** para evitar queda de tensão nas pontas da linha de LED.")
     elif metragem_fita > 0:
         st.success(f"✅ O projeto está dentro da capacidade ideal para operação com 1 fonte de alimentação (até 150W).")
 
-    # Dicionário coletado para o relatório
+    # Dicionário coletado e enriquecido para o relatório profissional
     dados_fita_relatorio = {
         "modelo": modelo_fita_desc,
         "metragem": metragem_fita,
@@ -971,7 +1007,12 @@ with aba_fitas_mod:
         "pot_metro": potencia_por_metro,
         "pot_total": potencia_total,
         "fluxo_total": fluxo_total,
-        "fontes": fontes_necessarias
+        "fontes": fontes_necessarias,
+        "tipo_perfil": tipo_perfil_aluminio,
+        "cct": cct_fita,
+        "irc": irc_fita,
+        "bitola_cabo": bitola_sugerida,
+        "queda_tensao": queda_calc
     }
 
 st.subheader("3. Emissão de Relatório Luminotécnico ℹ️")
