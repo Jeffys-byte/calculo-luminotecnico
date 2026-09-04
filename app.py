@@ -157,7 +157,6 @@ def verificar_autenticacao():
                         horas_decorridas = (agora - tempo_criacao).total_seconds() / 3600
                         if not verificar_autenticacao():
     st.stop()
-
 # --- VERIFICAÇÃO CONTÍNUA DO TEMPO DE TESTE ---
 email_atual = st.session_state.usuario_email
 user_info_atual = carregar_usuario_db(email_atual)
