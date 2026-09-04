@@ -96,13 +96,6 @@ def salvar_usuario_db(email, senha, tipo="cliente", assinante=0):
     conn.commit()
     conn.close()
 
-def atualizar_senha_db(email, nova_senha):
-    conn = sqlite3.connect('luminotecnica.db')
-    cursor = conn.cursor()
-    cursor.execute("UPDATE usuarios SET senha = ?, token_recuperacao = NULL WHERE email = ?", (nova_senha, email))
-    conn.commit()
-    conn.close()
-
 def excluir_usuario_db(email):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
@@ -110,15 +103,6 @@ def excluir_usuario_db(email):
     cursor.execute("DELETE FROM usuarios WHERE email = ?", (email,))
     conn.commit()
     conn.close()
-
-def gerar_token_recuperacao(email):
-    token = str(random.randint(100000, 999999))
-    conn = sqlite3.connect('luminotecnica.db')
-    cursor = conn.cursor()
-    cursor.execute("UPDATE usuarios SET token_recuperacao = ? WHERE email = ?", (token, email))
-    conn.commit()
-    conn.close()
-    return token
 
 def adicionar_cliente_db(email_usuario, nome, email_cli, telefone, cidade):
     conn = sqlite3.connect('luminotecnica.db')
@@ -278,7 +262,7 @@ if "banco_fitas" not in st.session_state:
         {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
     ]
 
-def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
+def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, dados_fita=None, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -391,12 +375,59 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
         doc.add_paragraph()
 
+    # ADICIONAR SEÇÃO DE FITAS LED SE HOUVER DADOS PREENCHIDOS
+    if dados_fita and dados_fita.get("metragem", 0) > 0:
+        doc.add_page_break()
+        p_fita = doc.add_paragraph()
+        r_fita = p_fita.add_run("PROJETO ESPECÍFICO: FITAS LED LINEARES E PERFIS")
+        r_fita.bold = True
+        r_fita.font.size = Pt(11.5)
+        r_fita.font.color.rgb = COR_TEXTO_TITULO
+
+        t2 = doc.add_table(rows=7, cols=4)
+        t2.alignment = WD_TABLE_ALIGNMENT.CENTER
+        t2.autofit = False
+        w2 = [Inches(2.5), Inches(1.0), Inches(1.8), Inches(1.2)]
+
+        headers2 = ["Parâmetro do Perfil / Fita", "Símbolo", "Valor Adotado", "Unidade"]
+        for ci, h in enumerate(headers2):
+            cell = t2.cell(0, ci)
+            cell.width = w2[ci]
+            set_cell_background(cell, HEX_COR_PRIMARIA)
+            set_cell_margins(cell)
+            p = cell.paragraphs[0]
+            run = p.add_run(h)
+            run.bold = True
+            run.font.color.rgb = RGBColor(255, 255, 255)
+            run.font.size = Pt(8.5)
+
+        dados_bloco_fita = [
+            ("Modelo da Fita LED", "—", dados_fita["modelo"], "—"),
+            ("Comprimento Total do Perfil / Fita", "L", f"{dados_fita['metragem']:.2f}", "m"),
+            ("Fluxo Luminoso Linear", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"),
+            ("Potência Linear da Fita", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"),
+            ("Potência Elétrica Total Calculada", "P_total", f"{dados_fita['pot_total']:.1f}", "W"),
+            ("Fontes de Alimentação (150W máx)", "Fontes", f"{dados_fita['fontes']} unidades", "un")
+        ]
+
+        for ri, row_vals in enumerate(dados_bloco_fita):
+            row_cells = t2.rows[ri + 1].cells
+            bg = "F7FAFC" if ri % 2 == 0 else "FFFFFF"
+            for ci, val in enumerate(row_vals):
+                cell = row_cells[ci]
+                cell.width = w2[ci]
+                set_cell_background(cell, bg)
+                set_cell_margins(cell)
+                p = cell.paragraphs[0]
+                run = p.add_run(val)
+                run.font.size = Pt(8.5)
+
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
 
-def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
+def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, dados_fita=None, logo_file=None):
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -500,6 +531,45 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
         ]))
         
         story.append(t)
+        story.append(Spacer(1, 10))
+
+    # ADICIONAR SEÇÃO DE FITAS LED NO PDF SE HOUVER DADOS
+    if dados_fita and dados_fita.get("metragem", 0) > 0:
+        story.append(PageBreak())
+        story.append(Paragraph("<b>PROJETO ESPECÍFICO: FITAS LED LINEARES E PERFIS</b>", titulo_style))
+        story.append(Spacer(1, 6))
+
+        tabela_fita_bruta = [
+            ["Parâmetro do Perfil / Fita", "Símbolo", "Valor Adotado", "Unidade"],
+            ["Modelo da Fita LED", "—", dados_fita["modelo"], "—"],
+            ["Comprimento Total do Perfil / Fita", "L", f"{dados_fita['metragem']:.2f}", "m"],
+            ["Fluxo Luminoso Linear", "Φ/m", f"{dados_fita['lumen_metro']:.1f}", "lm/m"],
+            ["Potência Linear da Fita", "P/m", f"{dados_fita['pot_metro']:.1f}", "W/m"],
+            ["Potência Elétrica Total Calculada", "P_total", f"{dados_fita['pot_total']:.1f}", "W"],
+            ["Fontes de Alimentação (150W máx)", "Fontes", f"{dados_fita['fontes']} unidades", "un"]
+        ]
+
+        tabela_fita_dados = []
+        for r_idx, row in enumerate(tabela_fita_bruta):
+            nova_linha = []
+            for c_idx, cell in enumerate(row):
+                if r_idx == 0:
+                    nova_linha.append(Paragraph(str(cell), th_style))
+                else:
+                    nova_linha.append(Paragraph(str(cell), td_left))
+            tabela_fita_dados.append(nova_linha)
+
+        t_fita = Table(tabela_fita_dados, colWidths=[200, 60, 180, 124])
+        t_fita.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), cor_primaria),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#F7FAFC"), colors.white])
+        ]))
+        story.append(t_fita)
         story.append(Spacer(1, 10))
 
     doc.build(story)
@@ -850,7 +920,7 @@ with aba_fitas_mod:
     with col_f1:
         comprimento_perfil = st.number_input(
             "Comprimento do Perfil / Linha de Luz (m)", 
-            min_value=0.5, value=10.0, step=0.5, 
+            min_value=0.0, value=10.0, step=0.5, 
             key="fita_comp_perfil",
             help="O comprimento da fita LED será igual ao comprimento linear do perfil instalado."
         )
@@ -866,18 +936,20 @@ with aba_fitas_mod:
             fita_sel = st.session_state.banco_fitas[idx_f]
             lumen_por_metro = fita_sel["Lumens"]
             potencia_por_metro = fita_sel["Potencia"]
+            modelo_fita_desc = f"{fita_sel['Fabricante']} - {fita_sel['Modelo']}"
         else:
             col_pm1, col_pm2 = st.columns(2)
             with col_pm1:
                 lumen_por_metro = st.number_input("Fluxo por Metro (lm/m)", value=1200.0, step=50.0, key="fita_lm_man")
             with col_pm2:
                 potencia_por_metro = st.number_input("Potência por Metro (W/m)", value=14.4, step=0.5, key="fita_pot_man")
+            modelo_fita_desc = "Fita LED Personalizada"
 
     potencia_total = metragem_fita * potencia_por_metro
     fluxo_total = metragem_fita * lumen_por_metro
 
     capacidade_max_fonte_w = 150.0 
-    fontes_necessarias = math.ceil(potencia_total / capacidade_max_fonte_w)
+    fontes_necessarias = math.ceil(potencia_total / capacidade_max_fonte_w) if potencia_total > 0 else 0
 
     st.markdown("---")
     col_res1, col_res2, col_res3, col_res4 = st.columns(4)
@@ -888,8 +960,19 @@ with aba_fitas_mod:
 
     if potencia_total > capacidade_max_fonte_w:
         st.warning(f"⚠️ **Atenção Profissional:** A potência total do trecho ({potencia_total:.1f}W) ultrapassa o limite seguro de uma única fonte padrão de 150W. O sistema dimensionou **{fontes_necessarias} fontes** para evitar queda de tensão nas pontas da linha de LED. Recomenda-se alimentar o perfil em pontos intermediários.")
-    else:
+    elif metragem_fita > 0:
         st.success(f"✅ O projeto está dentro da capacidade ideal para operação com 1 fonte de alimentação (até 150W).")
+
+    # Dicionário coletado para o relatório
+    dados_fita_relatorio = {
+        "modelo": modelo_fita_desc,
+        "metragem": metragem_fita,
+        "lumen_metro": lumen_por_metro,
+        "pot_metro": potencia_por_metro,
+        "pot_total": potencia_total,
+        "fluxo_total": fluxo_total,
+        "fontes": fontes_necessarias
+    }
 
 st.subheader("3. Emissão de Relatório Luminotécnico ℹ️")
 
@@ -912,8 +995,13 @@ else:
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
                 
-                # CORRIGIDO: Passando lista_calculos_ambientes em vez de lista_ambientes
-                arquivo_docx_bytes = gerar_docx_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+                arquivo_docx_bytes = gerar_docx_consolidado(
+                    cliente_ativo_rel, 
+                    dados_prof_dict, 
+                    lista_calculos_ambientes, 
+                    dados_fita=dados_fita_relatorio, 
+                    logo_file=logo_bytes
+                )
                 
                 st.success("Word gerado com sucesso!")
                 st.download_button(
@@ -938,8 +1026,13 @@ else:
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
                 
-                # CORRIGIDO: Passando lista_calculos_ambientes em vez de lista_ambientes
-                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+                arquivo_pdf_bytes = gerar_pdf_consolidado(
+                    cliente_ativo_rel, 
+                    dados_prof_dict, 
+                    lista_calculos_ambientes, 
+                    dados_fita=dados_fita_relatorio, 
+                    logo_file=logo_bytes
+                )
                 
                 st.success("PDF gerado com sucesso!")
                 st.download_button(
