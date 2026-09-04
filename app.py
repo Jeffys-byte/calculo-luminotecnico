@@ -186,7 +186,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
 
     data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
     p_t = doc.add_paragraph()
-    r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO CONSOLIDADO")
+    r_t = p_t.add_run("RELATÓRIO LUMINOTÉCNICO EXECUTIVO CONSOLIDADO")
     r_t.bold = True
     r_t.font.size = Pt(14)
     r_t.font.color.rgb = COR_TEXTO_TITULO
@@ -210,7 +210,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
         r_amb.font.size = Pt(11.5)
         r_amb.font.color.rgb = COR_TEXTO_TITULO
 
-        t1 = doc.add_table(rows=12, cols=4)
+        t1 = doc.add_table(rows=15, cols=4)
         t1.alignment = WD_TABLE_ALIGNMENT.CENTER
         t1.autofit = False
         w1 = [Inches(2.5), Inches(1.0), Inches(1.8), Inches(1.2)]
@@ -230,14 +230,18 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
         dados_bloco1 = [
             ("Nome do Ambiente", "—", amb['nome'], "—"),
             ("Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"),
-            ("Área Total", "A", f"{amb['area']:.2f}", "m²"),
-            ("Iluminância Requerida", "Ereq", f"{amb['lux_req']:.2f}", "lx"),
+            ("Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"),
+            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"),
+            ("Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f}", "lx"),
+            ("Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"),
             ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
-            ("Quantidade de Equipamentos", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']),
-            ("Arranjo Luminoso", "—", f"{amb['arranjo_str']}", "arr."),
+            ("Quantidade de Equipamentos Adotada", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']),
+            ("Arranjo Luminoso Distribuído", "—", f"{amb['arranjo_str']}", "arr."),
+            ("Espaçamentos e Afastamentos (C / L)", "dc / dl", f"Entre: {amb['dist_c_entre']:.2f}m / {amb['dist_l_entre']:.2f}m | Paredes: {amb['dist_c_parede']:.2f}m / {amb['dist_l_parede']:.2f}m", "m"),
             ("Iluminância Real Alcançada", "Ereal", f"{amb['lux_real']:.2f}", "lx"),
-            ("Potência Total e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"),
-            ("Status Final", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—")
+            ("Potência Total Instalada e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"),
+            ("Status Final de Conformidade", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—"),
+            ("Anotações / Responsabilidade", "ART/CREA", f"Prof: {dados_profissional.get('nome', 'N/A')} ({dados_profissional.get('registro', 'N/A')})", "—")
         ]
 
         for ri, row_vals in enumerate(dados_bloco1):
@@ -309,7 +313,7 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
         alignment=0
     )
 
-    story.append(Paragraph("RELATÓRIO LUMINOTÉCNICO CONSOLIDADO", titulo_style))
+    story.append(Paragraph("RELATÓRIO LUMINOTÉCNICO EXECUTIVO CONSOLIDADO", titulo_style))
     data_atual_str = datetime.date.today().strftime("%d/%m/%Y")
     
     info_txt = f"<b>Cliente / Empreendimento:</b> {dados_cliente.get('Nome', 'Cliente Geral')} | Método dos Lúmens<br/>" \
@@ -329,14 +333,18 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
             ["Parâmetro", "Símbolo", "Valor Adotado", "Unidade"],
             ["Nome do Ambiente", "—", amb['nome'], "—"],
             ["Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"],
-            ["Área Total", "A", f"{amb['area']:.2f}", "m²"],
-            ["Iluminância Requerida", "Ereq", f"{amb['lux_req']:.2f} lx", "NBR ISO/CIE 8995-1"],
+            ["Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"],
+            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"],
+            ["Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f} lx", "NBR ISO/CIE 8995-1"],
+            ["Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"],
             ["Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm", amb['modelo_lum']],
-            ["Quantidade de Equipamentos", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']],
-            ["Arranjo Luminoso", "—", f"{amb['arranjo_str']}", "arr."],
+            ["Quantidade de Equipamentos Adotada", "N", f"{amb['qtd_real_str']}", amb['unidade_medida_qtd']],
+            ["Arranjo Luminoso Distribuído", "—", f"{amb['arranjo_str']}", "arr."],
+            ["Espaçamentos (Entre e Paredes)", "dc / dl", f"Entre: {amb['dist_c_entre']:.2f}m / {amb['dist_l_entre']:.2f}m | Paredes: {amb['dist_c_parede']:.2f}m / {amb['dist_l_parede']:.2f}m", "m"],
             ["Iluminância Real Alcançada", "Ereal", f"{amb['lux_real']:.2f} lx", "Calculado"],
-            ["Potência Total e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"],
-            ["Status Final", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—"]
+            ["Potência Total Instalada e DPI", "P / DPI", f"{amb['pot_total']:.2f} W | {amb['dpi']:.2f} W/m²", "W / W/m²"],
+            ["Status Final de Conformidade", "—", "CONFORME (Aprovado)" if amb['conforme'] else "NÃO CONFORME", "—"],
+            ["Responsabilidade Técnica", "ART", f"{dados_profissional.get('nome', 'N/A')} ({dados_profissional.get('registro', 'N/A')})", "—"]
         ]
 
         tabela_dados = []
@@ -519,6 +527,19 @@ with aba_principal:
                 hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
             with col_g3:
                 hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
+
+            # --- JANELA DE TABELA DE ORIENTAÇÃO PARA OS FATORES (U e D) ---
+            with st.expander("📖 Tabela Auxiliar de Referência para Fatores (u e d)"):
+                st.markdown("""
+                * **Fator de Utilização ($u$):** Representa a eficiência luminosa do ambiente de acordo com as dimensões e reflexão das paredes/teto.
+                  * *Ambientes claros (paredes/tetos brancos):* **0.60 a 0.75**
+                  * *Ambientes médios / normais:* **0.50 a 0.60**
+                  * *Ambientes escuros / industriais:* **0.30 a 0.45**
+                * **Fator de Depreciação / Manutenção ($d$):** Considera a perda de fluxo por acúmulo de poeira e envelhecimento das lâmpadas.
+                  * *Ambiente limpo com limpeza periódica (escritórios/residências):* **0.80 a 0.90**
+                  * *Ambiente normal / comercial padrão:* **0.70 a 0.80**
+                  * *Ambiente industrial sujeito a poeira/fumaça:* **0.50 a 0.65**
+                """)
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
