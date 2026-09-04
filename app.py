@@ -5,6 +5,7 @@ import io
 import datetime
 import base64
 import sqlite3
+import streamlit.components.v1 as components
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -189,7 +190,79 @@ def verificar_autenticacao():
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
             st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1).")
-            st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", "https://mpago.la/2sbQvQ9", use_container_width=True)
+            
+            # --- ADIÇÃO 1 & 2: CRONÔMETRO DE TESTE + BOTÃO DE PAGAMENTO R$ 19,90 ---
+            componentes_html = """
+            <div class="pro-banner">
+                <h3>Tempo Restante do seu Teste Gratuito:</h3>
+                <div id="countdown" class="timer">23:59:59</div>
+                <p>Desbloqueie o acesso completo agora por apenas R$ 19,90/mês:</p>
+                <a href="https://mpago.la/2sbQvQ9" target="_blank">
+                    <button class="btn-pro">Virar PRO por R$ 19,90</button>
+                </a>
+            </div>
+
+            <style>
+                .pro-banner {
+                    background: #1a202c;
+                    border: 2px solid #ffc107;
+                    padding: 20px;
+                    border-radius: 8px;
+                    text-align: center;
+                    font-family: sans-serif;
+                    color: white;
+                    margin-top: 10px;
+                }
+                .timer {
+                    font-size: 32px;
+                    font-weight: bold;
+                    color: #ff4d4d;
+                    margin: 15px 0;
+                }
+                .btn-pro {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 14px 24px;
+                    font-size: 18px;
+                    font-weight: bold;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    width: 100%;
+                    transition: background 0.3s;
+                }
+                .btn-pro:hover {
+                    background-color: #218838;
+                }
+            </style>
+
+            <script>
+                // Simulador de contagem regressiva (Ex: 24 horas restantes)
+                let tempoRestante = 24 * 60 * 60; 
+
+                function atualizarCronometro() {
+                    let horas = Math.floor(tempoRestante / 3600);
+                    let minutos = Math.floor((tempoRestante % 3600) / 60);
+                    let segundos = tempoRestante % 60;
+
+                    horas = horas < 10 ? "0" + horas : horas;
+                    minutos = minutos < 10 ? "0" + minutos : minutos;
+                    segundos = segundos < 10 ? "0" + segundos : segundos;
+
+                    document.getElementById("countdown").innerText = horas + ":" + minutos + ":" + segundos;
+
+                    if (tempoRestante > 0) {
+                        tempoRestante--;
+                    } else {
+                        document.getElementById("countdown").innerText = "EXPIRADO";
+                    }
+                }
+
+                setInterval(atualizarCronometro, 1000);
+            </script>
+            """
+            components.html(componentes_html, height=250)
+            st.link_button("💳 Link Direto Mercado Pago", "https://mpago.la/2sbQvQ9", use_container_width=True)
                     
         return False
 
