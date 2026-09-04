@@ -559,17 +559,27 @@ with aba_principal:
             if qtd_min_sugerida < 1:
                 qtd_min_sugerida = 1
 
-            st.markdown("##### 🎛️ Configuração do Arranjo e Espaçamentos")
-            col_arr1, col_arr2 = st.columns(2)
-            with col_arr1:
-                linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
-            with col_arr2:
-                colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
+            # --- CONFIGURAÇÃO DO ARRANJO E QUANTIDADE MANUAL ---
+            st.markdown("##### 🎛️ Configuração do Arranjo e Quantidade")
+            
+            usar_qtd_manual = st.checkbox("Definir quantidade total de luminárias manualmente?", key=f"chk_qtd_man_{amb_atual['id']}")
 
-            qtd_real = linhas_man * colunas_man
+            if usar_qtd_manual:
+                qtd_real = st.number_input("Quantidade Total de Luminárias", min_value=1, value=qtd_min_sugerida, step=1, key=f"qtd_manual_val_{amb_atual['id']}")
+                linhas_man, colunas_man = 1, int(qtd_real)
+                arranjo_str = f"Arranjo Livre ({int(qtd_real)} unidades)"
+            else:
+                col_arr1, col_arr2 = st.columns(2)
+                with col_arr1:
+                    linhas_man = st.number_input("Quantidade de Linhas", min_value=1, value=1, step=1, key=f"linhas_man_{amb_atual['id']}")
+                with col_arr2:
+                    colunas_man = st.number_input("Quantidade de Colunas", min_value=1, value=2, step=1, key=f"colunas_man_{amb_atual['id']}")
+                
+                qtd_real = linhas_man * colunas_man
+                arranjo_str = f"{linhas_man} Linhas x {colunas_man} Colunas"
 
             if qtd_real < qtd_min_sugerida:
-                st.warning(f"⚠️ O arranjo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
+                st.warning(f"⚠️ O quantitativo selecionado ({qtd_real} un) está abaixo do mínimo teórico calculado ({qtd_min_sugerida} un).")
 
             # --- CÁLCULO E VALIDAÇÃO TÉCNICA DE ESPAÇAMENTO S/H COM OPÇÃO MANUAL ---
             relacao_sh_padrao = 1.25 
@@ -635,7 +645,7 @@ with aba_principal:
                 "qtd_teorica": qtd_teorica,
                 "qtd_real_str": str(int(qtd_real)),
                 "unidade_medida_qtd": "un",
-                "arranjo_str": f"{linhas_man} Linhas x {colunas_man} Colunas",
+                "arranjo_str": arranjo_str,
                 "dist_c_entre": dist_c_entre,
                 "dist_c_parede": dist_c_parede,
                 "dist_l_entre": dist_l_entre,
