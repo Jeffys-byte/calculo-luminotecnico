@@ -29,6 +29,15 @@ def init_db():
             token_expira TEXT
         )
     ''')
+    
+    # Garante compatibilidade caso o banco já exista sem as colunas novas
+    cursor.execute("PRAGMA table_info(usuarios)")
+    colunas = [col[1] for col in cursor.fetchall()]
+    if "token_recuperacao" not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN token_recuperacao TEXT")
+    if "token_expira" not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN token_expira TEXT")
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,9 +115,7 @@ def atualizar_senha_db(email, nova_senha):
 def excluir_usuario_db(email):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
-    # Remove primeiro os clientes vinculados ao usuário para manter a integridade
     cursor.execute("DELETE FROM clientes WHERE email_usuario = ?", (email,))
-    # Remove o usuário
     cursor.execute("DELETE FROM usuarios WHERE email = ?", (email,))
     conn.commit()
     conn.close()
@@ -612,7 +619,6 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
             st.rerun()
 
         st.markdown("---")
-        # Botão com confirmação para exclusão de usuário
         if st.button("🗑️ Excluir Usuário Selecionado do Banco", use_container_width=True):
             if email_alvo == "jefkar27@gmail.com":
                 st.error("Não é permitido excluir o usuário Administrador principal do sistema!")
