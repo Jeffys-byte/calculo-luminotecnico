@@ -92,6 +92,13 @@ def salvar_usuario_db(email, senha, tipo="cliente", assinante=0):
     conn.commit()
     conn.close()
 
+def atualizar_ senha_db(email, nova_senha):
+    conn = sqlite3.connect('luminotecnica.db')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET senha = ? WHERE email = ?", (nova_senha, email))
+    conn.commit()
+    conn.close()
+
 def adicionar_cliente_db(email_usuario, nome, email_cli, telefone, cidade):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
@@ -165,6 +172,22 @@ def verificar_autenticacao():
                             st.error("⏰ Seu período de teste de 24 horas expirou. Vá na aba 'Assinar' para continuar usando por apenas R$ 19,90/mês.")
                     else:
                         st.error("E-mail ou senha incorretos, ou usuário não encontrado.")
+
+            with st.expander("🔑 Esqueci / Redefinir minha senha"):
+                with st.form("form_esqueci_senha"):
+                    email_rec = st.text_input("Confirme seu e-mail cadastrado").strip().lower()
+                    nova_senha_rec = st.text_input("Digite a nova senha", type="password").strip()
+                    btn_redefinir = st.form_submit_button("Atualizar Minha Senha")
+                    
+                    if btn_redefinir:
+                        if email_rec and nova_senha_rec:
+                            if carregar_usuario_db(email_rec):
+                                atualizar_senha_db(email_rec, nova_senha_rec)
+                                st.success("Senha redefinida com sucesso! Volte ao formulário acima e faça login com a nova senha.")
+                            else:
+                                st.error("Este e-mail não está cadastrado no sistema.")
+                        else:
+                            st.error("Preencha todos os campos para redefinir a senha.")
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
@@ -846,7 +869,7 @@ else:
                 }
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
-                arquivo_docx_bytes = gerar_docx_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+                arquivo_docx_bytes = gerar_docx_consolidado(cliente_ativo_rel, dados_prof_dict, lista_ambientes, logo_file=logo_bytes)
                 
                 st.success("Word gerado com sucesso!")
                 st.download_button(
@@ -870,7 +893,7 @@ else:
                 }
                 logo_bytes = io.BytesIO(logo_upload.getvalue()) if logo_upload is not None else None
                 cliente_ativo_rel = banco_clientes_usuario[0] if banco_clientes_usuario else {"Nome": "Cliente Geral"}
-                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_ativo_rel, dados_prof_dict, lista_calculos_ambientes, logo_file=logo_bytes)
+                arquivo_pdf_bytes = gerar_pdf_consolidado(cliente_ativo_rel, dados_prof_dict, lista_ambientes, logo_file=logo_bytes)
                 
                 st.success("PDF gerado com sucesso!")
                 st.download_button(
