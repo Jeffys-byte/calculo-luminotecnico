@@ -39,7 +39,6 @@ def init_db():
     ''')
     conn.commit()
     
-    # Inserir admin padrão se não existir
     cursor.execute("SELECT * FROM usuarios WHERE email = ?", ("jefkar27@gmail.com",))
     if not cursor.fetchone():
         data_criacao = (datetime.datetime.now() - datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
@@ -52,7 +51,6 @@ def init_db():
 
 init_db()
 
-# --- FUNÇÕES DE PERSISTÊNCIA SQLITE ---
 def carregar_usuario_db(email):
     conn = sqlite3.connect('luminotecnica.db')
     cursor = conn.cursor()
@@ -68,7 +66,6 @@ def carregar_usuario_db(email):
     except:
         criacao = datetime.datetime.now()
         
-    # Carregar clientes
     cursor.execute("SELECT nome, email_cli, telefone, cidade FROM clientes WHERE email_usuario = ?", (email,))
     clientes_rows = cursor.fetchall()
     banco_clientes = [{"Nome": r[0], "Email": r[1], "Telefone": r[2], "Cidade": r[3]} for r in clientes_rows]
@@ -110,7 +107,6 @@ def listar_todos_usuarios_db():
     conn.close()
     return df_users, df_cli
 
-# --- FUNÇÃO DE FUNDO PERSONALIZADO (CSS / BASE64) ---
 def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
     if img_bytes:
         encoded = base64.b64encode(img_bytes).decode()
@@ -133,7 +129,6 @@ def definir_fundo_personalizado_base64(img_bytes=None, url_imagem=None):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# --- SISTEMA DE AUTENTICAÇÃO, CADASTRO E TESTE DE 24H ---
 def verificar_autenticacao():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
@@ -173,8 +168,6 @@ def verificar_autenticacao():
 
         with tab_cadastro:
             st.markdown("### ⚡ Comece a usar agora mesmo")
-            st.markdown("Cadastre seu e-mail e ganhe **24 horas de acesso total e gratuito** para testar todos os recursos na obra.")
-            
             with st.form("form_cadastro"):
                 novo_email = st.text_input("Seu E-mail principal", value="").strip().lower()
                 nova_senha = st.text_input("Crie uma Senha", type="password", value="").strip()
@@ -195,10 +188,8 @@ def verificar_autenticacao():
 
         with tab_planos:
             st.markdown("### 🚀 Assinatura Profissional")
-            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1), fitas LED e relatórios.")
-            st.info("💡 **Apenas R$ 19,90 / mês** — Cancele quando quiser.")
-            link_mercado_pago = "https://mpago.la/2sbQvQ9"
-            st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", link_mercado_pago, use_container_width=True)
+            st.markdown("Tenha acesso ilimitado a todos os cálculos normativos (NBR ISO/CIE 8995-1).")
+            st.link_button("💳 Assinar Agora por R$ 19,90/mês via Mercado Pago", "https://mpago.la/2sbQvQ9", use_container_width=True)
                     
         return False
 
@@ -211,7 +202,6 @@ email_atual = st.session_state.usuario_email
 user_info_atual = carregar_usuario_db(email_atual)
 banco_clientes_usuario = user_info_atual["banco_clientes"] if user_info_atual else [{"Nome": "Cliente Geral", "Email": "contato@clientegeral.com", "Telefone": "(21) 99999-9999", "Cidade": "Rio de Janeiro - RJ"}]
 
-# --- TABELA DE NORMAS (NBR ISO/CIE 8995-1) ---
 TABELA_NORMA = {
     "Residências - Salas de Estar / Dormitórios": 150,
     "Residências - Cozinhas / Banheiros": 300,
@@ -241,7 +231,6 @@ if "banco_fitas" not in st.session_state:
         {"Fabricante": "Super LED", "Modelo": "Fita LED 14.4W/m SMD5050", "Lumens": 1200, "Potencia": 14.4},
     ]
 
-# --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM WORD (DOCX) ---
 def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -328,7 +317,7 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
             ("Nome do Ambiente", "—", amb['nome'], "—"),
             ("Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"),
             ("Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"),
-            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k = (C*L)/(Hu*(C+L))]", "—"),
+            ("Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"),
             ("Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f}", "lx"),
             ("Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"),
             ("Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm".replace(",", "."), amb['modelo_lum']),
@@ -360,8 +349,6 @@ def gerar_docx_consolidado(dados_cliente, dados_profissional, lista_ambientes, l
     buffer.seek(0)
     return buffer.getvalue()
 
-
-# --- FUNÇÃO DE GERAÇÃO DO RELATÓRIO EM PDF (REPORTLAB) ---
 def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, logo_file=None):
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
@@ -431,7 +418,7 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
             ["Nome do Ambiente", "—", amb['nome'], "—"],
             ["Comprimento / Largura / Pé-Direito", "C x L x H", f"{amb['comp']:.2f} x {amb['larg']:.2f} x {amb['pe_direito']:.2f}", "m"],
             ["Área Total do Piso", "A", f"{amb['area']:.2f}", "m²"],
-            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f} [k=(C*L)/(Hu*(C+L))]", "—"],
+            ["Índice do Recinto (Geometria)", "k", f"{amb['k_indice']:.2f}", "—"],
             ["Iluminância Requerida (Normativa)", "Ereq", f"{amb['lux_req']:.2f} lx", "NBR ISO/CIE 8995-1"],
             ["Fatores de Utilização e Depreciação", "u / d", f"u = {amb['fator_u']:.2f} | d = {amb['fator_d']:.2f}", "—"],
             ["Fonte Luminosa / Equipamento", "Φ", f"{amb['fluxo_unidade_rel']:,.2f} lm", amb['modelo_lum']],
@@ -472,8 +459,6 @@ def gerar_pdf_consolidado(dados_cliente, dados_profissional, lista_ambientes, lo
     buffer.seek(0)
     return buffer.getvalue()
 
-
-# --- INTERFACE PRINCIPAL ---
 st.title("💡 Luminotécnica Profissional")
 st.markdown(f"**Sessão Ativa:** {st.session_state.get('usuario_email', 'Usuário')}")
 
@@ -481,11 +466,10 @@ if st.sidebar.button("🚪 Sair do Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-# --- PAINEL ADMINISTRATIVO NA BARRA LATERAL (SE FOR ADMIN) ---
 if user_info_atual and user_info_atual["tipo"] == "admin":
     st.sidebar.markdown("---")
-    with st.sidebar.expander("👑 Painel Admin"):
-        st.markdown("### Banco de Dados")
+    with st.sidebar.expander("👑 Painel Admin ℹ️"):
+        st.markdown("Gerencie os registros do banco de dados SQLite de usuários e clientes cadastrados.")
         df_u, df_c = listar_todos_usuarios_db()
         st.markdown("**Usuários:**")
         st.dataframe(df_u, use_container_width=True)
@@ -493,19 +477,18 @@ if user_info_atual and user_info_atual["tipo"] == "admin":
         st.dataframe(df_c, use_container_width=True)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🏢 Logotipo do Projeto")
-logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"])
+st.sidebar.markdown("### 🏢 Logotipo do Projeto ℹ️")
+logo_upload = st.sidebar.file_uploader("Enviar Logo (.png, .jpg)", type=["png", "jpg", "jpeg"], help="Envie o logotipo da sua empresa para customizar os relatórios finais.")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 👷 Identificação do Profissional")
-prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_nome_input")
-prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input")
-prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input")
-prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input")
+st.sidebar.markdown("### 👷 Identificação do Profissional ℹ️")
+prof_nome = st.sidebar.text_input("Nome do Profissional", value="", key="prof_nome_input", help="Nome que aparecerá como responsável técnico no relatório.")
+prof_registro = st.sidebar.text_input("Registro / CREA / CAU", value="", key="prof_reg_input", help="Número do registro profissional (CREA/CAU).")
+prof_celular = st.sidebar.text_input("Celular / WhatsApp", value="", key="prof_cel_input", help="Contato para o rodapé do projeto.")
+prof_email = st.sidebar.text_input("E-mail Profissional", value="", key="prof_email_input", help="E-mail corporativo do projetista.")
 
 st.markdown("---")
 
-# --- ABAS PRINCIPAIS CORRETAS ---
 aba_cli_mod, aba_calc_mod, aba_fitas_mod = st.tabs([
     "📇 Cadastro e Seleção de Clientes", 
     "🏠 1. Cálculo de Luminárias e Painéis", 
@@ -513,7 +496,7 @@ aba_cli_mod, aba_calc_mod, aba_fitas_mod = st.tabs([
 ])
 
 with aba_cli_mod:
-    st.markdown("### 📇 Cadastro e Seleção de Clientes")
+    st.markdown("### 📇 Cadastro e Seleção de Clientes ℹ️")
     with st.expander("➕ Cadastrar Novo Cliente no Sistema"):
         with st.form("form_novo_cliente"):
             col_nc1, col_nc2 = st.columns(2)
@@ -540,7 +523,7 @@ with aba_cli_mod:
                     st.error("O nome do cliente é obrigatório.")
 
     lista_nomes_clientes = [c["Nome"] for c in banco_clientes_usuario]
-    cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto", lista_nomes_clientes)
+    cliente_selecionado_nome = st.selectbox("Selecione o Cliente para este Projeto ℹ️", lista_nomes_clientes, help="Escolha qual cliente/obra receberá os cálculos atuais.")
     cliente_dados_obj = next((c for c in banco_clientes_usuario if c["Nome"] == cliente_selecionado_nome), banco_clientes_usuario[0])
 
 st.markdown("---")
@@ -548,7 +531,8 @@ st.markdown("---")
 with aba_calc_mod:
     st.markdown(f"### 🛋️ Ambientes para o Cliente: **{banco_clientes_usuario[0]['Nome'] if 'banco_clientes_usuario' in locals() else 'Cliente'}**")
 
-    with st.expander("⚙️ Cadastrar Nova Luminária no Banco"):
+    with st.expander("⚙️ Cadastrar Nova Luminária no Banco ℹ️"):
+        st.markdown("Adicione novas luminárias comerciais com seus fluxos em lúmens e potências para uso rápido.")
         with st.form("form_nova_lum"):
             col_fl1, col_fl2, col_fl3, col_fl4, col_fl5 = st.columns(5)
             with col_fl1:
@@ -578,7 +562,7 @@ with aba_calc_mod:
 
     col_add, col_rem = st.columns([1, 1])
     with col_add:
-        if st.button("➕ Adicionar Novo Ambiente"):
+        if st.button("➕ Adicionar Novo Ambiente ℹ️", help="Adiciona um novo espaço/cômodo independente para cálculo luminotécnico."):
             novo_id = st.session_state.ambientes[-1]["id"] + 1 if st.session_state.ambientes else 1
             st.session_state.ambientes.append({"id": novo_id, "nome": f"Ambiente {novo_id}"})
             st.rerun()
@@ -595,14 +579,14 @@ with aba_calc_mod:
             
             col_n1, col_n2 = st.columns(2)
             with col_n1:
-                novo_nome = st.text_input("Nome do Ambiente", value=amb_atual['nome'], key=f"nome_amb_{amb_atual['id']}")
+                novo_nome = st.text_input("Nome do Ambiente", value=amb_atual['nome'], key=f"nome_amb_{amb_atual['id']}", help="Identificação descritiva do cômodo (ex: Sala de Estar).")
             with col_n2:
-                tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1)", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}")
+                tipo_atividade = st.selectbox("Atividade / Norma (NBR ISO/CIE 8995-1) ℹ️", list(TABELA_NORMA.keys()), key=f"ativ_{amb_atual['id']}", help="Define o nível de iluminância mínima em Lux exigido pela norma técnica para cada tipo de uso.")
 
             lux_padrao_norma = TABELA_NORMA[tipo_atividade]
             col_lux1, col_lux2 = st.columns(2)
             with col_lux1:
-                usar_lux_manual = st.checkbox("Alterar Iluminância (Lux) Manualmente?", key=f"chk_lux_{amb_atual['id']}")
+                usar_lux_manual = st.checkbox("Alterar Iluminância (Lux) Manualmente? ℹ️", key=f"chk_lux_{amb_atual['id']}", help="Permite definir um valor personalizado de Lux em vez do padrão normativo.")
             with col_lux2:
                 if usar_lux_manual:
                     lux_req = st.number_input("Iluminância Desejada (lx)", value=float(lux_padrao_norma), step=10.0, key=f"lux_man_{amb_atual['id']}")
@@ -615,7 +599,7 @@ with aba_calc_mod:
             opcoes_banco_str = [f"{l['Fabricante']} - {l['Modelo']} ({l['Lumens']} lm / {l['Potencia']} W)" for l in banco_ativo]
             opcoes_banco_str.append("⚙️ Inserir Manual / Personalizado")
             
-            escolha_banco = st.selectbox("Selecionar Equipamento", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}")
+            escolha_banco = st.selectbox("Selecionar Equipamento ℹ️", opcoes_banco_str, key=f"lum_escolha_{amb_atual['id']}", help="Escolha uma luminária do banco cadastrado ou insira características customizadas.")
 
             if escolha_banco != "⚙️ Inserir Manual / Personalizado":
                 idx_escolhido = opcoes_banco_str.index(escolha_banco)
@@ -630,22 +614,22 @@ with aba_calc_mod:
                     potencia_base = st.number_input("Potência Unitária (W)", value=24.0, step=1.0, key=f"pot_man_lum_{amb_atual['id']}")
                 modelo_desc_relatorio = "[Painel/Luminária] Personalizado"
 
-            st.markdown("##### Geometria e Fatores")
+            st.markdown("##### Geometria e Fatores ℹ️")
             col_g1, col_g2, col_g3 = st.columns(3)
             with col_g1:
-                comp = st.number_input("Comprimento (m)", value=3.0, step=0.1, key=f"comp_{amb_atual['id']}")
-                pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}")
+                comp = st.number_input("Comprimento (m)", value=3.0, step=0.1, key=f"comp_{amb_atual['id']}", help="Comprimento em metros do recinto.")
+                pe_direito = st.number_input("Pé-Direito (m)", value=2.9, step=0.1, key=f"pd_{amb_atual['id']}", help="Altura total do piso ao teto.")
             with col_g2:
-                larg = st.number_input("Largura (m)", value=2.0, step=0.1, key=f"larg_{amb_atual['id']}")
-                hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}")
+                larg = st.number_input("Largura (m)", value=2.0, step=0.1, key=f"larg_{amb_atual['id']}", help="Largura em metros do recinto.")
+                hp = st.number_input("Plano de Trabalho (m)", value=0.75, step=0.05, key=f"hp_{amb_atual['id']}", help="Altura do plano onde ocorre a tarefa visual (padrão de escritório: 0,75m).")
             with col_g3:
-                hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}")
+                hp_desc = st.number_input("Rebaixamento / Suspensão (m)", value=0.0, step=0.05, key=f"hdesc_{amb_atual['id']}", help="Distância de rebaixamento do teto (ex: forro de gesso estruturado ou luminária pendente).")
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                fator_u = st.slider("Fator de Utilização (u)", 0.3, 0.8, 0.70, 0.05, key=f"fu_{amb_atual['id']}")
+                fator_u = st.slider("Fator de Utilização (u) ℹ️", 0.3, 0.8, 0.70, 0.05, key=f"fu_{amb_atual['id']}", help="Eficiência luminosa da sala baseada nas refletâncias das paredes, teto e piso.")
             with col_f2:
-                fator_d = st.slider("Fator de Depreciação (d)", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}")
+                fator_d = st.slider("Fator de Depreciação (d) ℹ️", 0.5, 0.9, 0.80, 0.05, key=f"fd_{amb_atual['id']}", help="Fator de manutenção que considera o acúmulo de poeira e envelhecimento das lâmpadas.")
 
             area = comp * larg
             hu = pe_direito - hp - hp_desc
@@ -660,7 +644,7 @@ with aba_calc_mod:
                 qtd_min_sugerida = 1
 
             st.markdown("##### 🎛️ Configuração do Arranjo e Quantidade")
-            usar_qtd_manual = st.checkbox("Definir quantidade total de luminárias manualmente?", key=f"chk_qtd_man_{amb_atual['id']}")
+            usar_qtd_manual = st.checkbox("Definir quantidade total de luminárias manualmente? ℹ️", key=f"chk_qtd_man_{amb_atual['id']}", help="Permite ignorar o cálculo automático de quantidade e fixar o número exato de luminárias desejado.")
 
             if usar_qtd_manual:
                 qtd_real = st.number_input("Quantidade Total de Luminárias", min_value=1, value=qtd_min_sugerida, step=1, key=f"qtd_manual_val_{amb_atual['id']}")
@@ -685,7 +669,7 @@ with aba_calc_mod:
             calc_c_auto = comp / colunas_man if colunas_man > 0 else comp
             calc_l_auto = larg / linhas_man if linhas_man > 0 else larg
 
-            usar_espacamento_manual = st.checkbox("Definir afastamentos e espaçamentos manualmente?", key=f"chk_esp_{amb_atual['id']}")
+            usar_espacamento_manual = st.checkbox("Definir afastamentos e espaçamentos manualmente? ℹ️", key=f"chk_esp_{amb_atual['id']}", help="Ajusta de forma personalizada a distância entre as luminárias e as paredes.")
 
             if usar_espacamento_manual:
                 col_em1, col_em2 = st.columns(2)
@@ -756,11 +740,11 @@ with aba_calc_mod:
             st.markdown("---")
 
 with aba_fitas_mod:
-    st.markdown("### ✨ Projeto de Fitas LED Lineares")
+    st.markdown("### ✨ Projeto de Fitas LED Lineares ℹ️")
     col_fita_1, col_fita_2 = st.columns(2)
     with col_fita_1:
-        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, key="fita_comp_m")
-        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, key="fita_lux_alvo")
+        fita_comp = st.number_input("Comprimento Linear da Sanca / Perfil (m)", value=10.0, step=0.5, key="fita_comp_m", help="Metragem linear total onde a fita LED será instalada.")
+        fita_lux_req = st.number_input("Iluminância Alvo (lx)", value=200.0, step=10.0, key="fita_lux_alvo", help="Nível de iluminação desejado para o projeto linear.")
     with col_fita_2:
         banco_fita_opcoes = [f"{f['Fabricante']} - {f['Modelo']} ({f['Lumens']} lm/m)" for f in st.session_state.banco_fitas]
         banco_fita_opcoes.append("⚙️ Personalizada")
@@ -775,7 +759,7 @@ with aba_fitas_mod:
     metragem_calculada_fita = (fita_lux_req * fita_comp) / lm_metro if lm_metro > 0 else 0
     st.info(f"📏 **Metragem Teórica Calculada de Fita LED:** **{metragem_calculada_fita:.2f} metros lineares**.")
 
-st.subheader("3. Emissão de Relatório Luminotécnico")
+st.subheader("3. Emissão de Relatório Luminotécnico ℹ️")
 
 is_admin_or_subscriber = (user_info_atual and (user_info_atual.get("tipo") == "admin" or user_info_atual.get("assinante", False)))
 
